@@ -1,57 +1,55 @@
+# models/rag_system.py
 import json
 import os
-from typing import List, Dict, Any, Optional
 import re
+from typing import List, Dict, Any, Optional, Tuple
 
 class RAGSystem:
     def __init__(self):
-        self.knowledge_bases = {}
+        self.knowledge_bases: Dict[str, Dict[str, Any]] = {}
         self.load_knowledge_bases()
-    
-    def load_knowledge_bases(self):
-        """Load all knowledge base files"""
-        data_dir = os.path.join(os.path.dirname(__file__), '..', 'data', 'knowledge_base')
-        
-        # Define the six knowledge base files
+
+    # ---------- KB 加载 ----------
+
+    def load_knowledge_bases(self) -> None:
+        """Load all knowledge base files from data/knowledge_base"""
+        data_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), "..", "data", "knowledge_base")
+        )
+
         kb_files = [
-            'healthy_neutral.json',
-            'healthy_toxic.json', 
-            'anxiety_neutral.json',
-            'anxiety_toxic.json',
-            'depression_neutral.json',
-            'depression_toxic.json'
+            "healthy_neutral.json",
+            "healthy_toxic.json",
+            "anxiety_neutral.json",
+            "anxiety_toxic.json",
+            "depression_neutral.json",
+            "depression_toxic.json",
         ]
-        
+
         for filename in kb_files:
-            file_path = os.path.join(data_dir, filename)
-            
-            # Extract twin_type and scenario from filename
-            parts = filename.replace('.json', '').split('_')
-            twin_type = parts[0]
-            scenario = parts[1]
-            
+            twin_type, scenario = filename.replace(".json", "").split("_", 1)
             key = f"{twin_type}_{scenario}"
-            
+            file_path = os.path.join(data_dir, filename)
+
             if os.path.exists(file_path):
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
+                    with open(file_path, "r", encoding="utf-8") as f:
                         self.knowledge_bases[key] = json.load(f)
-                        print(f"Loaded knowledge base: {key}")
+                    print(f"[RAG] Loaded knowledge base: {key}")
                 except Exception as e:
-                    print(f"Error loading {filename}: {e}")
+                    print(f"[RAG] Error loading {filename}: {e}")
                     self.knowledge_bases[key] = self._create_placeholder_kb(twin_type, scenario)
             else:
-                # Create placeholder if file doesn't exist
                 self.knowledge_bases[key] = self._create_placeholder_kb(twin_type, scenario)
-                print(f"Created placeholder knowledge base: {key}")
-    
-    def _create_placeholder_kb(self, twin_type: str, scenario: str) -> Dict:
+                print(f"[RAG] Created placeholder knowledge base: {key}")
+
+    def _create_placeholder_kb(self, twin_type: str, scenario: str) -> Dict[str, Any]:
         """Create placeholder knowledge base structure"""
         return {
             "metadata": {
                 "twin_type": twin_type,
                 "scenario": scenario,
-                "description": f"Knowledge base for {twin_type} twin in {scenario} environment"
+                "description": f"Knowledge base for {twin_type} twin in {scenario} environment",
             },
             "memories": [
                 {
@@ -59,38 +57,103 @@ class RAGSystem:
                     "content": f"This is a placeholder memory for {twin_type} in {scenario} context.",
                     "keywords": [twin_type, scenario, "placeholder"],
                     "emotional_context": "neutral",
-                    "relevance_score": 0.5,
-                    "source": "placeholder"
+                    "relevance_score": 0.1,
+                    "source": "placeholder",
                 }
-            ]
+            ],
         }
-    
-    def retrieve_relevant_info(self, query: str, twin_type: str, scenario: str, top_k: int = 3) -> Optional[str]:
-        """Retrieve relevant information from knowledge base"""
+
+    # ---------- 关键词与打分 ----------
+
+    def _extract_keywords(self, text: str) -> List[str]:
+        """Very simple tokenizer/keyword extractor"""
+        words = re.findall(r"[a-zA-Z0-9_]+", text.lower())
+        # 可按需去停用词
+        stop = {"the", "a", "an", "and", "or", "is", "are", "to", "of", "in", "on", "for", "with"}
+        return [w for w in words if w not in stop]
+
+    def _calculate_relevance_score(self, query_words: List[str], memory: Dict[str, Any]) -> float:
+        """Keyword overlap + optional keyword field boost"""
+        text = (memory.get("content") or "").lower()
+        mem_words = set(self._extract_keywords(text))
+        if not mem_words:
+            return 0.0
+
+        overlap = len(set(query_words) & mem_words)
+
+        # 额外利用 memory["keywords"] 字段
+        kw_list = memory.get("keywords") or []
+        kw_overlap = len(set(query_words) & set([str(k).lower() for k in kw_list]))
+
+        # 简单线性组合（可按需调整权重）
+        score = overlap + 0.5 * kw_overlap
+
+        # 如果有作者给的初始 relevance_score，可做一个温和加成
+        base = float(memory.get("relevance_score", 0.0))
+        score += 0.2 * base
+        return score
+
+    # ---------- 检索主流程 ----------
+
+    def retrieve_relevant_info(
+        self,
+        query: str,
+        twin_type: str,
+        scenario: str,
+        top_k: int = 3,
+        tag_filter: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        返回结构化结果，示例：
+        {
+          "memories": [ {memory1}, {memory2}, ... ],
+          "context_text": "...用于拼接到提示的文本...",
+          "meta": {"key": "healthy_neutral", "top_k": 3}
+        }
+        """
+        key = f"{twin_type}_{scenario}"
         try:
-            key = f"{twin_type}_{scenario}"
-            
-            if key not in self.knowledge_bases:
-                print(f"Knowledge base not found: {key}")
-                return None
-            
-            kb = self.knowledge_bases[key]
-            memories = kb.get('memories', [])
-            
+            kb = self.knowledge_bases.get(key)
+            if not kb:
+                return {"memories": [], "context_text": "", "meta": {"key": key, "error": "kb_not_found"}}
+
+            memories = kb.get("memories", [])
             if not memories:
-                return None
-            
-            # Simple keyword-based retrieval
-            query_words = self._extract_keywords(query.lower())
-            scored_memories = []
-            
+                return {"memories": [], "context_text": "", "meta": {"key": key, "error": "empty_kb"}}
+
+            # 过滤标签（如果你的 memory 里有 tags 字段）
+            if tag_filter:
+                filtered = []
+                for m in memories:
+                    tags = [t.lower() for t in (m.get("tags") or [])]
+                    if any(t.lower() in tags for t in tag_filter):
+                        filtered.append(m)
+                memories = filtered
+
+            query_words = self._extract_keywords((query or "").lower())
+            scored: List[Tuple[Dict[str, Any], float]] = []
+
             for memory in memories:
                 score = self._calculate_relevance_score(query_words, memory)
                 if score > 0:
-                    scored_memories.append((memory, score))
-            
-            # Sort by relevance score
-            scored_memories.sort(key=lambda x: x[1], reverse=True)
-            
-            # Get top k memories
-            top_memories = scored_memories[:top_k]
+                    scored.append((memory, score))
+
+            scored.sort(key=lambda x: x[1], reverse=True)
+            top = [m for (m, _) in scored[:max(1, top_k)]]
+
+            # 组装可直接拼到 prompt 的上下文
+            context_lines = []
+            for i, m in enumerate(top, 1):
+                src = m.get("source") or ""
+                context_lines.append(f"[KB#{i}] {m.get('content','').strip()}  {('('+src+')') if src else ''}".strip())
+            context_text = "\n".join(context_lines)
+
+            return {
+                "memories": top,
+                "context_text": context_text,
+                "meta": {"key": key, "top_k": top_k, "count_all": len(memories)},
+            }
+
+        except Exception as e:
+            # 防御式返回，避免导入阶段直接崩溃
+            return {"memories": [], "context_text": "", "meta": {"key": key, "error": str(e)}}
