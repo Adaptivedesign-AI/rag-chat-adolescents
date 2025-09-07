@@ -605,7 +605,7 @@ document.addEventListener('DOMContentLoaded', function() {
     handleResize();
     
     // Add some easter eggs
-    console.log('🧠 Digital Twin Platform loaded successfully!');
+    console.log('Digital Twin Platform loaded successfully!');
     console.log('Keyboard shortcuts:');
     console.log('- Ctrl/Cmd + Enter: Send message');
     console.log('- Escape: Clear input');
