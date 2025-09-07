@@ -5,31 +5,31 @@ let ragEnabled = false;
 let isTyping = false;
 let chatHistory = [];
 
-// Twin configurations
+// Twin configurations - UPDATED WITH NEW NAMES AND AVATARS
 const twinConfigs = {
     healthy: {
-        name: 'Alex',
+        name: 'Eli Carter',
         age: 17,
         grade: '12th',
-        avatar: '😊',
+        avatar: '/static/images/eli-carter-avatar.png',
         description: 'A well-balanced adolescent with good mental health',
-        initialMessage: "Hi! I'm Alex. What would you like to talk about?"
+        initialMessage: "Hi! I'm Eli Carter. What would you like to talk about?"
     },
     anxiety: {
-        name: 'Jordan',
+        name: 'Luna Marquez',
         age: 17,
         grade: '11th',
-        avatar: '😰',
+        avatar: '/static/images/luna-marquez-avatar.png',
         description: 'Experiences anxiety and social challenges',
-        initialMessage: "Hey... I'm Jordan. I guess we can talk if you want."
+        initialMessage: "Hey... I'm Luna Marquez. I guess we can talk if you want."
     },
     depression: {
-        name: 'Casey',
+        name: 'Mina Chen',
         age: 18,
         grade: 'Senior',
-        avatar: '😔',
+        avatar: '/static/images/mina-chen-avatar.png',
         description: 'Struggles with feelings of sadness and hopelessness',
-        initialMessage: "Hi, I'm Casey. Not sure what to say really..."
+        initialMessage: "Hi, I'm Mina Chen. Not sure what to say really..."
     }
 };
 
@@ -138,13 +138,17 @@ function initChatPage() {
     const pathParts = window.location.pathname.split('/');
     currentTwin = pathParts[pathParts.length - 1] || 'healthy';
     
-    // Initialize components
+    console.log('Current twin type from URL:', currentTwin);
+    
+    // Initialize components immediately
     initializeTwinProfile();
     updateChatHeader();
     setupEventListeners();
     
-    // Add initial message
-    addInitialMessage();
+    // Add initial message after a short delay
+    setTimeout(() => {
+        addInitialMessage();
+    }, 500);
 }
 
 function initializeTwinProfile() {
@@ -154,31 +158,28 @@ function initializeTwinProfile() {
         return;
     }
     
-    // Update profile avatar
+    console.log('Initializing profile for:', config.name, 'Type:', currentTwin);
+    
+    // Update profile avatar with image
     const profileAvatar = document.getElementById('profileAvatar');
     if (profileAvatar) {
-        // Try to load image first, fallback to emoji
-        const img = document.createElement('img');
-        img.src = `/static/images/${config.name.toLowerCase()}-avatar.png`;
-        img.alt = config.name;
-        img.onerror = function() {
-            profileAvatar.innerHTML = config.avatar;
-        };
-        img.onload = function() {
-            profileAvatar.innerHTML = '';
-            profileAvatar.appendChild(img);
-        };
+        profileAvatar.innerHTML = `<img src="${config.avatar}" alt="${config.name}">`;
     }
     
-    // Update profile info
+    // Update profile name
     const profileName = document.getElementById('profileName');
-    if (profileName) profileName.textContent = config.name;
+    if (profileName) {
+        profileName.textContent = config.name;
+        console.log('Updated profile name to:', config.name);
+    }
     
+    // Update profile details
     const profileDetails = document.getElementById('profileDetails');
     if (profileDetails) {
+        const typeCapitalized = currentTwin.charAt(0).toUpperCase() + currentTwin.slice(1);
         profileDetails.innerHTML = `
             Age: ${config.age} | Grade: ${config.grade}<br>
-            Type: ${currentTwin.charAt(0).toUpperCase() + currentTwin.slice(1)}<br>
+            Type: ${typeCapitalized}<br>
             ${config.description}
         `;
     }
