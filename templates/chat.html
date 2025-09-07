@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with Digital Twin - Digital Twin Platform</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+</head>
+<body class="chat-page">
+    <div class="sidebar">
+        <button class="back-button">
+            ← Back to Selection
+        </button>
+        
+        <div class="twin-profile">
+            <div class="profile-avatar" id="profileAvatar"></div>
+            <div class="profile-name" id="profileName">Eli Carter</div>
+            <div class="profile-details" id="profileDetails">
+                Age: 17 | Grade: 12th<br>
+                Type: Healthy<br>
+                A well-balanced adolescent with good mental health
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="control-group">
+                <label class="control-label">Scenario</label>
+                <div class="scenario-options">
+                    <div class="scenario-option active" data-scenario="neutral">
+                        <div class="scenario-title">🌱 Neutral Environment</div>
+                        <div class="scenario-description">Balanced, supportive social context</div>
+                    </div>
+                    <div class="scenario-option" data-scenario="toxic">
+                        <div class="scenario-title">⚠️ Toxic Environment</div>
+                        <div class="scenario-description">Challenging, stressful social context</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="rag-toggle-container">
+                    <label class="control-label">
+                        Enhanced Memory (RAG)
+                        <label class="toggle-switch">
+                            <input type="checkbox" id="ragToggle">
+                            <span class="slider"></span>
+                        </label>
+                    </label>
+                    <div class="rag-description">
+                        When enabled, the AI will use additional context from video-based memories to provide more realistic responses.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-title" id="chatTitle">Chat with Eli Carter</div>
+            <div class="chat-subtitle" id="chatSubtitle">Neutral Environment • Enhanced Memory: OFF</div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be added dynamically -->
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            Eli Carter is typing...
+        </div>
+
+        <div class="chat-input-container">
+            <form class="chat-input-form">
+                <textarea 
+                    class="chat-input" 
+                    id="messageInput" 
+                    placeholder="Type your message here..." 
+                    rows="1"
+                ></textarea>
+                <button type="submit" class="send-button" id="sendButton">
+                    ➤
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <script src="/static/js/main.js"></script>
+</body>
+</html>
