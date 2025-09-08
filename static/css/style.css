@@ -24,34 +24,30 @@ body {
 .header {
     text-align: center;
     margin-bottom: 30px;
-    color: #7F96B2;
+    padding: 20px 0;
 }
 
-.header h1 {
-    font-size: 2.5rem;
-    font-weight: bold;
-    margin-bottom: 10px;
-    text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
-}
-
-.header p {
-    font-size: 1.2rem;
-    color: #5a6c7d;
-    max-width: 600px;
-    margin: 0 auto 15px auto;
-    line-height: 1.5;
+.header-image {
+    max-width: 100%;
+    height: auto;
+    max-height: 300px;
+    object-fit: contain;
 }
 
 .disclaimer-text {
     text-align: center;
     margin-bottom: 35px;
-    max-width: 700px;
-    color: #5a6c7d;
-    font-size: 0.9rem;
-    line-height: 1.4;
+    max-width: 900px;
+    color: #1E5175;
+    font-size: 0.95rem;
+    line-height: 1.6;
     padding: 0 20px;
-    opacity: 0.85;
     margin-top: -5px;
+}
+
+.disclaimer-text strong {
+    color: #1E5175;
+    font-weight: bold;
 }
 
 .twins-container {
