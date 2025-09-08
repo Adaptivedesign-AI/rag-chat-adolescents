@@ -25,24 +25,29 @@ body {
     text-align: center;
     margin-bottom: 30px;
     padding: 20px 0;
+    max-width: 1200px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .header-image {
-    max-width: 100%;
+    width: 100%;
     height: auto;
-    max-height: 300px;
+    max-height: 400px;
     object-fit: contain;
 }
 
 .disclaimer-text {
-    text-align: center;
+    text-align: left;
     margin-bottom: 35px;
-    max-width: 900px;
+    max-width: 1200px;
     color: #1E5175;
     font-size: 0.95rem;
     line-height: 1.6;
     padding: 0 20px;
     margin-top: -5px;
+    margin-left: auto;
+    margin-right: auto;
 }
 
 .disclaimer-text strong {
