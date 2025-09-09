@@ -1,35 +1,142 @@
 // ===== GLOBAL VARIABLES =====
-let currentTwin = 'healthy';
+let currentTwin = null;
 let currentScenario = 'neutral';
 let ragEnabled = false;
 let isTyping = false;
 let chatHistory = [];
 
-// Twin configurations - UPDATED WITH NEW NAMES AND AVATARS
+// Twin configurations for all 12 characters
 const twinConfigs = {
-    healthy: {
-        name: 'Eli Carter',
+    // Middle Adolescence - Healthy
+    kaiya: {
+        name: 'Kaiya',
+        age: 15,
+        grade: '9th',
+        avatar: '/static/images/kaiya-avatar.png',
+        description: 'A well-balanced freshman who maintains good physical and mental health',
+        mentalHealthType: 'healthy',
+        ageGroup: 'middle',
+        initialMessage: "Hey! I'm Kaiya. What's up?"
+    },
+    ethan: {
+        name: 'Ethan',
+        age: 14,
+        grade: '9th', 
+        avatar: '/static/images/ethan-avatar.png',
+        description: 'An active freshman who prioritizes physical health and sports',
+        mentalHealthType: 'healthy',
+        ageGroup: 'middle',
+        initialMessage: "Hi there! I'm Ethan. How's it going?"
+    },
+    
+    // Middle Adolescence - Anxious
+    jaden: {
+        name: 'Jaden',
+        age: 15,
+        grade: '10th',
+        avatar: '/static/images/jaden-avatar.png',
+        description: 'Experiences anxiety and social challenges',
+        mentalHealthType: 'anxiety',
+        ageGroup: 'middle',
+        initialMessage: "Um, hi... I'm Jaden. I guess we can talk."
+    },
+    nia: {
+        name: 'Nia',
+        age: 14,
+        grade: '9th',
+        avatar: '/static/images/nia-avatar.png',
+        description: 'Struggles with social anxiety and academic pressure',
+        mentalHealthType: 'anxiety',
+        ageGroup: 'middle',
+        initialMessage: "Hi... I'm Nia. Not sure what to say really."
+    },
+    
+    // Middle Adolescence - Depression
+    diego: {
+        name: 'Diego',
+        age: 15,
+        grade: '10th',
+        avatar: '/static/images/diego-avatar.png',
+        description: 'Struggles with feelings of sadness and disconnection',
+        mentalHealthType: 'depression',
+        ageGroup: 'middle',
+        initialMessage: "Hey. I'm Diego. I guess we can chat."
+    },
+    emily: {
+        name: 'Emily',
+        age: 14,
+        grade: '9th',
+        avatar: '/static/images/emily-avatar.png',
+        description: 'Experiences persistent sadness and struggles with motivation',
+        mentalHealthType: 'depression',
+        ageGroup: 'middle',
+        initialMessage: "Hi, I'm Emily. Don't really know what to talk about..."
+    },
+    
+    // Late Adolescence - Healthy
+    lucas: {
+        name: 'Lucas',
         age: 17,
         grade: '12th',
-        avatar: '/static/images/eli-carter-avatar.png',
-        description: 'A well-balanced adolescent with good mental health',
-        initialMessage: "Hi! I'm Eli Carter. What would you like to talk about?"
+        avatar: '/static/images/lucas-avatar.png',
+        description: 'A high-achieving senior with excellent academic performance',
+        mentalHealthType: 'healthy',
+        ageGroup: 'late',
+        initialMessage: "Hey! I'm Lucas. What would you like to talk about?"
     },
-    anxiety: {
-        name: 'Luna Marquez',
-        age: 17,
+    maya: {
+        name: 'Maya',
+        age: 16,
         grade: '11th',
-        avatar: '/static/images/luna-marquez-avatar.png',
-        description: 'Experiences anxiety and social challenges',
-        initialMessage: "Hey... I'm Luna Marquez. I guess we can talk if you want."
+        avatar: '/static/images/maya-avatar.png',
+        description: 'A well-balanced junior who demonstrates resilience',
+        mentalHealthType: 'healthy',
+        ageGroup: 'late',
+        initialMessage: "Hi there! I'm Maya. How can I help?"
     },
-    depression: {
-        name: 'Mina Chen',
+    
+    // Late Adolescence - Anxious
+    hana: {
+        name: 'Hana',
+        age: 17,
+        grade: '12th',
+        avatar: '/static/images/hana-avatar.png',
+        description: 'Experiences high levels of anxiety around academic performance',
+        mentalHealthType: 'anxiety',
+        ageGroup: 'late',
+        initialMessage: "Oh, hi... I'm Hana. I'm kind of nervous but we can talk."
+    },
+    mateo: {
+        name: 'Mateo',
+        age: 16,
+        grade: '11th',
+        avatar: '/static/images/mateo-avatar.png',
+        description: 'Struggles with social anxiety and peer acceptance',
+        mentalHealthType: 'anxiety',
+        ageGroup: 'late',
+        initialMessage: "Hey... I'm Mateo. This is kinda awkward but whatever."
+    },
+    
+    // Late Adolescence - Depression
+    amara: {
+        name: 'Amara',
         age: 18,
-        grade: 'Senior',
-        avatar: '/static/images/mina-chen-avatar.png',
-        description: 'Struggles with feelings of sadness and hopelessness',
-        initialMessage: "Hi, I'm Mina Chen. Not sure what to say really..."
+        grade: '12th',
+        avatar: '/static/images/amara-avatar.png',
+        description: 'Experiences persistent feelings of sadness and hopelessness',
+        mentalHealthType: 'depression',
+        ageGroup: 'late',
+        initialMessage: "Hi, I'm Amara. I guess we can talk if you want to."
+    },
+    tavian: {
+        name: 'Tavian',
+        age: 17,
+        grade: '12th',
+        avatar: '/static/images/tavian-avatar.png',
+        description: 'Struggles with depression and feelings of disconnection',
+        mentalHealthType: 'depression',
+        ageGroup: 'late',
+        initialMessage: "Hey. I'm Tavian. Not really sure what to say..."
     }
 };
 
@@ -47,7 +154,6 @@ function debounce(func, wait) {
 }
 
 function showNotification(message, type = 'info') {
-    // Create notification element
     const notification = document.createElement('div');
     notification.className = `notification notification-${type}`;
     notification.textContent = message;
@@ -67,12 +173,10 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Animate in
     setTimeout(() => {
         notification.style.transform = 'translateX(0)';
     }, 100);
     
-    // Remove after delay
     setTimeout(() => {
         notification.style.transform = 'translateX(100%)';
         setTimeout(() => {
@@ -101,23 +205,24 @@ function initMainPage() {
             card.style.transition = 'all 0.6s ease';
             card.style.opacity = '1';
             card.style.transform = 'translateY(0)';
-        }, index * 200);
+        }, index * 100);
     });
     
     // Add click handlers
     cards.forEach(card => {
         card.addEventListener('click', function() {
-            const twinType = this.classList.contains('healthy') ? 'healthy' :
-                           this.classList.contains('anxiety') ? 'anxiety' : 'depression';
-            selectTwin(twinType);
+            const twinId = this.getAttribute('data-twin');
+            if (twinId && twinConfigs[twinId]) {
+                selectTwin(twinId);
+            }
         });
     });
 }
 
-function selectTwin(twinType) {
-    console.log(`Selecting twin: ${twinType}`);
+function selectTwin(twinId) {
+    console.log(`Selecting twin: ${twinId}`);
     
-    const card = document.querySelector(`.twin-card.${twinType}`);
+    const card = document.querySelector(`[data-twin="${twinId}"]`);
     if (card) {
         // Add selection animation
         card.style.transform = 'scale(0.95)';
@@ -125,7 +230,7 @@ function selectTwin(twinType) {
         
         setTimeout(() => {
             // Navigate to chat page
-            window.location.href = `/chat/${twinType}`;
+            window.location.href = `/chat/${twinId}`;
         }, 100);
     }
 }
@@ -134,13 +239,19 @@ function selectTwin(twinType) {
 function initChatPage() {
     console.log('Initializing chat page...');
     
-    // Get twin type from URL
+    // Get twin ID from URL
     const pathParts = window.location.pathname.split('/');
-    currentTwin = pathParts[pathParts.length - 1] || 'healthy';
+    currentTwin = pathParts[pathParts.length - 1];
     
-    console.log('Current twin type from URL:', currentTwin);
+    console.log('Current twin ID from URL:', currentTwin);
     
-    // Initialize components immediately
+    if (!twinConfigs[currentTwin]) {
+        console.error('Invalid twin ID:', currentTwin);
+        window.location.href = '/';
+        return;
+    }
+    
+    // Initialize components
     initializeTwinProfile();
     updateChatHeader();
     setupEventListeners();
@@ -154,31 +265,32 @@ function initChatPage() {
 function initializeTwinProfile() {
     const config = twinConfigs[currentTwin];
     if (!config) {
-        console.error('Invalid twin type:', currentTwin);
+        console.error('Invalid twin:', currentTwin);
         return;
     }
     
-    console.log('Initializing profile for:', config.name, 'Type:', currentTwin);
+    console.log('Initializing profile for:', config.name);
     
-    // Update profile avatar with image
+    // Update profile avatar
     const profileAvatar = document.getElementById('profileAvatar');
     if (profileAvatar) {
-        profileAvatar.innerHTML = `<img src="${config.avatar}" alt="${config.name}">`;
+        profileAvatar.innerHTML = `<img src="${config.avatar}" alt="${config.name}" onerror="this.style.display='none'; this.parentNode.innerHTML='${config.name.charAt(0).toUpperCase()}';">`;
     }
     
     // Update profile name
     const profileName = document.getElementById('profileName');
     if (profileName) {
         profileName.textContent = config.name;
-        console.log('Updated profile name to:', config.name);
     }
     
     // Update profile details
     const profileDetails = document.getElementById('profileDetails');
     if (profileDetails) {
-        const typeCapitalized = currentTwin.charAt(0).toUpperCase() + currentTwin.slice(1);
+        const typeCapitalized = config.mentalHealthType.charAt(0).toUpperCase() + config.mentalHealthType.slice(1);
+        const ageGroupText = config.ageGroup === 'middle' ? 'Middle Adolescence' : 'Late Adolescence';
         profileDetails.innerHTML = `
             Age: ${config.age} | Grade: ${config.grade}<br>
+            ${ageGroupText}<br>
             Type: ${typeCapitalized}<br>
             ${config.description}
         `;
@@ -269,7 +381,7 @@ function selectScenario(scenario) {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            twin_type: currentTwin,
+            twin_id: currentTwin,
             scenario: scenario
         })
     })
@@ -277,6 +389,8 @@ function selectScenario(scenario) {
     .then(data => {
         if (data.success) {
             showNotification(`Switched to ${scenario} environment`);
+            // Add a system message to show the scenario change
+            addMessage('system', `Environment changed to ${scenario.charAt(0).toUpperCase() + scenario.slice(1)}`);
         }
     })
     .catch(error => {
@@ -299,7 +413,7 @@ function toggleRAG() {
             'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-            twin_type: currentTwin,
+            twin_id: currentTwin,
             rag_enabled: ragEnabled
         })
     })
@@ -345,7 +459,7 @@ function sendMessage(event) {
         },
         body: JSON.stringify({
             message: message,
-            twin_type: currentTwin,
+            twin_id: currentTwin,
             scenario: currentScenario,
             rag_enabled: ragEnabled
         })
@@ -384,13 +498,19 @@ function addMessage(sender, content, timestamp = new Date()) {
     let avatarContent;
     if (sender === 'user') {
         avatarContent = '👤';
+    } else if (sender === 'system') {
+        avatarContent = '⚙️';
     } else {
-        avatarContent = `<img src="${config.avatar}" alt="${config.name}">`;
+        avatarContent = `<img src="${config.avatar}" alt="${config.name}" onerror="this.style.display='none'; this.parentNode.innerHTML='${config.name.charAt(0).toUpperCase()}';">`;
     }
+    
+    // Special styling for system messages
+    const messageClass = sender === 'system' ? 'system' : sender;
+    const systemStyle = sender === 'system' ? 'style="background: #f0f0f0; color: #666; font-style: italic; text-align: center;"' : '';
     
     messageDiv.innerHTML = `
         <div class="message-avatar">${avatarContent}</div>
-        <div class="message-content">
+        <div class="message-content" ${systemStyle}>
             ${content}
             <div class="message-time" style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">
                 ${formatTime(timestamp)}
@@ -468,7 +588,6 @@ function autoResizeTextarea(event) {
 }
 
 function goBack() {
-    // Add some animation before leaving
     document.body.style.opacity = '0.8';
     setTimeout(() => {
         window.location.href = '/';
@@ -512,17 +631,6 @@ function exportChatHistory() {
     showNotification('Chat history exported');
 }
 
-function copyLastMessage() {
-    if (chatHistory.length === 0) return;
-    
-    const lastMessage = chatHistory[chatHistory.length - 1];
-    if (lastMessage.sender === 'twin') {
-        navigator.clipboard.writeText(lastMessage.content)
-            .then(() => showNotification('Message copied to clipboard'))
-            .catch(() => showNotification('Failed to copy message', 'error'));
-    }
-}
-
 // ===== ERROR HANDLING =====
 window.addEventListener('error', function(event) {
     console.error('Global error:', event.error);
@@ -536,7 +644,6 @@ window.addEventListener('unhandledrejection', function(event) {
 
 // ===== KEYBOARD SHORTCUTS =====
 document.addEventListener('keydown', function(event) {
-    // Ctrl/Cmd + Enter to send message
     if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         const messageInput = document.getElementById('messageInput');
         if (messageInput && document.activeElement === messageInput) {
@@ -544,7 +651,6 @@ document.addEventListener('keydown', function(event) {
         }
     }
     
-    // Escape to clear input
     if (event.key === 'Escape') {
         const messageInput = document.getElementById('messageInput');
         if (messageInput && document.activeElement === messageInput) {
@@ -553,7 +659,6 @@ document.addEventListener('keydown', function(event) {
         }
     }
     
-    // Ctrl/Cmd + K to clear chat
     if ((event.ctrlKey || event.metaKey) && event.key === 'k') {
         event.preventDefault();
         if (confirm('Clear chat history?')) {
@@ -561,7 +666,6 @@ document.addEventListener('keydown', function(event) {
         }
     }
     
-    // Ctrl/Cmd + S to export chat
     if ((event.ctrlKey || event.metaKey) && event.key === 's') {
         event.preventDefault();
         exportChatHistory();
@@ -575,19 +679,16 @@ function isMobile() {
 
 function handleResize() {
     if (isMobile()) {
-        // Adjust layout for mobile
         const sidebar = document.querySelector('.sidebar');
         const chatContainer = document.querySelector('.chat-container');
         
         if (sidebar && chatContainer) {
-            // Mobile-specific adjustments
             sidebar.style.maxHeight = '40vh';
             chatContainer.style.height = '60vh';
         }
     }
 }
 
-// Debounced resize handler
 const debouncedResize = debounce(handleResize, 250);
 window.addEventListener('resize', debouncedResize);
 
@@ -602,67 +703,10 @@ document.addEventListener('DOMContentLoaded', function() {
         initChatPage();
     }
     
-    // Handle initial resize
     handleResize();
     
-    // Add some easter eggs
     console.log('Digital Twin Platform loaded successfully!');
-    console.log('Keyboard shortcuts:');
-    console.log('- Ctrl/Cmd + Enter: Send message');
-    console.log('- Escape: Clear input');
-    console.log('- Ctrl/Cmd + K: Clear chat');
-    console.log('- Ctrl/Cmd + S: Export chat');
 });
-
-// ===== SERVICE WORKER (OPTIONAL) =====
-if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function() {
-        navigator.serviceWorker.register('/static/sw.js')
-            .then(function(registration) {
-                console.log('ServiceWorker registration successful');
-            })
-            .catch(function(err) {
-                console.log('ServiceWorker registration failed');
-            });
-    });
-}
-
-// ===== ANALYTICS (PLACEHOLDER) =====
-function trackEvent(eventName, properties = {}) {
-    // Placeholder for analytics tracking
-    console.log('Track event:', eventName, properties);
-    
-    // You can integrate with Google Analytics, Mixpanel, etc. here
-    // Example: gtag('event', eventName, properties);
-}
-
-function trackTwinSelection(twinType) {
-    trackEvent('twin_selected', { twin_type: twinType });
-}
-
-function trackMessageSent(messageLength, twinType, scenario, ragEnabled) {
-    trackEvent('message_sent', {
-        message_length: messageLength,
-        twin_type: twinType,
-        scenario: scenario,
-        rag_enabled: ragEnabled
-    });
-}
-
-function trackScenarioChange(fromScenario, toScenario, twinType) {
-    trackEvent('scenario_changed', {
-        from_scenario: fromScenario,
-        to_scenario: toScenario,
-        twin_type: twinType
-    });
-}
-
-function trackRAGToggle(enabled, twinType) {
-    trackEvent('rag_toggled', {
-        enabled: enabled,
-        twin_type: twinType
-    });
-}
 
 // ===== EXPORT FOR GLOBAL ACCESS =====
 window.DigitalTwinApp = {
@@ -676,5 +720,6 @@ window.DigitalTwinApp = {
     currentTwin: () => currentTwin,
     currentScenario: () => currentScenario,
     ragEnabled: () => ragEnabled,
-    chatHistory: () => [...chatHistory]
+    chatHistory: () => [...chatHistory],
+    twinConfigs: twinConfigs
 };
