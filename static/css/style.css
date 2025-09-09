@@ -55,11 +55,28 @@ body {
     font-weight: bold;
 }
 
+/* Age Group Sections */
+.age-group-section {
+    width: 100%;
+    max-width: 1200px;
+    margin-bottom: 50px;
+}
+
+.age-group-title {
+    text-align: center;
+    font-size: 2rem;
+    color: #7F96B2;
+    margin-bottom: 30px;
+    padding: 15px 0;
+    border-bottom: 3px solid #C6B093;
+    background: rgba(255, 255, 255, 0.7);
+    border-radius: 15px;
+}
+
 .twins-container {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 30px;
-    max-width: 1200px;
     width: 100%;
 }
 
@@ -74,6 +91,10 @@ body {
     cursor: pointer;
     position: relative;
     overflow: hidden;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
 }
 
 .twin-card::before {
@@ -125,6 +146,8 @@ body {
     overflow: hidden;
     background-size: cover;
     background-position: center;
+    color: #7F96B2;
+    font-weight: bold;
 }
 
 .avatar img {
@@ -167,7 +190,9 @@ body {
     color: #666;
     line-height: 1.5;
     margin-bottom: 25px;
-    min-height: 50px;
+    flex-grow: 1;
+    display: flex;
+    align-items: center;
 }
 
 .start-chat-btn {
@@ -220,6 +245,7 @@ body {
     display: flex;
     flex-direction: column;
     box-shadow: 2px 0 10px rgba(0,0,0,0.1);
+    overflow: hidden; /* Prevent overflow on parent */
 }
 
 .back-button {
@@ -233,6 +259,7 @@ body {
     display: flex;
     align-items: center;
     gap: 10px;
+    flex-shrink: 0; /* Don't shrink */
 }
 
 .back-button:hover {
@@ -244,6 +271,7 @@ body {
     text-align: center;
     background: linear-gradient(135deg, rgba(183, 220, 237, 0.3), rgba(252, 243, 203, 0.3));
     border-bottom: 2px solid #C6B093;
+    flex-shrink: 0; /* Don't shrink */
 }
 
 .profile-avatar {
@@ -258,6 +286,8 @@ body {
     font-size: 2.5rem;
     border: 3px solid #7F96B2;
     overflow: hidden;
+    color: #7F96B2;
+    font-weight: bold;
 }
 
 .profile-avatar img {
@@ -284,6 +314,27 @@ body {
     padding: 25px 20px;
     flex: 1;
     background: rgba(255,255,255,0.9);
+    overflow-y: auto; /* Enable scrolling here */
+    overflow-x: hidden;
+}
+
+/* Custom scrollbar for controls section */
+.controls-section::-webkit-scrollbar {
+    width: 6px;
+}
+
+.controls-section::-webkit-scrollbar-track {
+    background: rgba(198, 176, 147, 0.1);
+    border-radius: 3px;
+}
+
+.controls-section::-webkit-scrollbar-thumb {
+    background: rgba(127, 150, 178, 0.5);
+    border-radius: 3px;
+}
+
+.controls-section::-webkit-scrollbar-thumb:hover {
+    background: rgba(127, 150, 178, 0.7);
 }
 
 .control-group {
@@ -453,6 +504,8 @@ input:checked + .slider:before {
     flex-shrink: 0;
     overflow: hidden;
     background: #F5F5F5;
+    font-size: 1.2rem;
+    font-weight: bold;
 }
 
 .message-avatar img {
@@ -465,12 +518,12 @@ input:checked + .slider:before {
 .message.user .message-avatar {
     background: #7F96B2;
     color: white;
-    font-size: 1.2rem;
 }
 
 .message.twin .message-avatar {
     background: #F5F5F5;
     border: 2px solid #C6B093;
+    color: #7F96B2;
 }
 
 .message-content {
@@ -585,6 +638,17 @@ input:checked + .slider:before {
 }
 
 /* ===== RESPONSIVE DESIGN ===== */
+@media (max-width: 1024px) {
+    .twins-container {
+        grid-template-columns: repeat(2, 1fr);
+        gap: 20px;
+    }
+    
+    .age-group-title {
+        font-size: 1.5rem;
+    }
+}
+
 @media (max-width: 768px) {
     .header h1 {
         font-size: 2rem;
@@ -597,6 +661,7 @@ input:checked + .slider:before {
     
     .twin-card {
         padding: 20px;
+        min-height: 300px;
     }
     
     .chat-page {
@@ -605,7 +670,7 @@ input:checked + .slider:before {
     
     .sidebar {
         width: 100%;
-        height: auto;
+        height: 40vh;
         max-height: 40vh;
     }
     
@@ -615,6 +680,7 @@ input:checked + .slider:before {
     
     .controls-section {
         padding: 15px;
+        max-height: 200px;
     }
     
     .scenario-options {
@@ -644,6 +710,10 @@ input:checked + .slider:before {
     
     .chat-input {
         font-size: 0.9rem;
+    }
+    
+    .age-group-title {
+        font-size: 1.3rem;
     }
 }
 
