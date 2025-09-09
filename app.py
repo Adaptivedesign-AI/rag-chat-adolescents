@@ -2,7 +2,6 @@ from flask import Flask, render_template, request, jsonify, session
 import google.generativeai as genai
 import sqlite3
 import json
-import pandas as pd
 import numpy as np
 from datetime import datetime
 import os
@@ -10,6 +9,8 @@ from typing import List, Dict, Any
 import logging
 from pathlib import Path
 import csv
+import pickle
+from sklearn.metrics.pairwise import cosine_similarity
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -27,7 +28,6 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # Initialize models
 chat_model = genai.GenerativeModel('gemini-2.0-flash-exp')
-embedding_model = genai.GenerativeModel('text-embedding-004')
 
 class DigitalTwinDatabase:
     def __init__(self, db_path='digital_twins.db'):
@@ -147,86 +147,53 @@ class DigitalTwinDatabase:
         conn.commit()
         conn.close()
 
-class RAGSystem:
+class NumPyRAGSystem:
     def __init__(self):
         self.scenarios_path = Path('scenarios')
         self.embeddings_cache = {}
     
-    def load_embeddings(self, bucket_name: str) -> pd.DataFrame:
-        """Load embeddings for a specific scenario bucket"""
+    def load_embeddings_data(self, bucket_name: str) -> Dict:
+        """Load embeddings data for a specific scenario bucket"""
         if bucket_name in self.embeddings_cache:
             return self.embeddings_cache[bucket_name]
         
-        embeddings_path = self.scenarios_path / bucket_name / 'embeddings.parquet'
+        # Try to load pre-computed embeddings (numpy format)
+        embeddings_path = self.scenarios_path / bucket_name / 'embeddings.pkl'
         chunks_path = self.scenarios_path / bucket_name / 'chunks.jsonl'
         
+        data = {'texts': [], 'embeddings': None}
+        
         try:
-            if embeddings_path.exists():
-                df = pd.read_parquet(embeddings_path)
-                self.embeddings_cache[bucket_name] = df
-                return df
-            elif chunks_path.exists():
-                # Fallback to JSONL if parquet doesn't exist
-                chunks = []
+            # Load chunks
+            if chunks_path.exists():
                 with open(chunks_path, 'r', encoding='utf-8') as f:
                     for line in f:
-                        chunks.append(json.loads(line.strip()))
-                
-                # Create basic DataFrame without embeddings
-                df = pd.DataFrame(chunks)
-                self.embeddings_cache[bucket_name] = df
-                return df
-            else:
-                logger.warning(f"No embeddings found for bucket: {bucket_name}")
-                return pd.DataFrame()
-        except Exception as e:
-            logger.error(f"Error loading embeddings for {bucket_name}: {e}")
-            return pd.DataFrame()
-    
-    def search_memories(self, query: str, twin_id: str, scenario: str, mental_health_type: str, k: int = 10) -> List[str]:
-        """Search for relevant memories based on query"""
-        bucket_name = f"{scenario}_{mental_health_type}"
-        df = self.load_embeddings(bucket_name)
-        
-        if df.empty:
-            logger.warning(f"No memories available for bucket: {bucket_name}")
-            return []
-        
-        try:
-            # Generate query embedding
-            query_embedding = self._get_embedding(query)
+                        try:
+                            chunk = json.loads(line.strip())
+                            if isinstance(chunk, dict):
+                                text = chunk.get('text', chunk.get('content', str(chunk)))
+                            else:
+                                text = str(chunk)
+                            data['texts'].append(text)
+                        except:
+                            continue
             
-            if 'embedding' in df.columns:
-                # Calculate cosine similarities
-                similarities = []
-                for idx, row in df.iterrows():
-                    chunk_embedding = np.array(row['embedding'])
-                    similarity = np.dot(query_embedding, chunk_embedding) / (
-                        np.linalg.norm(query_embedding) * np.linalg.norm(chunk_embedding)
-                    )
-                    similarities.append((similarity, idx))
-                
-                # Sort by similarity and get top k
-                similarities.sort(reverse=True)
-                top_indices = [idx for _, idx in similarities[:k]]
-                
-                # Return top chunks
-                return [df.iloc[idx]['text'] for idx in top_indices if 'text' in df.columns]
+            # Load embeddings if available
+            if embeddings_path.exists():
+                with open(embeddings_path, 'rb') as f:
+                    data['embeddings'] = pickle.load(f)
+                logger.info(f"Loaded {len(data['texts'])} texts and embeddings for {bucket_name}")
             else:
-                # Fallback: return random chunks if no embeddings
-                n_chunks = min(k, len(df))
-                if 'text' in df.columns:
-                    return df['text'].sample(n=n_chunks).tolist()
-                elif 'chunk' in df.columns:
-                    return df['chunk'].sample(n=n_chunks).tolist()
-                else:
-                    return []
+                logger.warning(f"No pre-computed embeddings found for {bucket_name}, will compute on-demand")
+            
+            self.embeddings_cache[bucket_name] = data
+            return data
         
         except Exception as e:
-            logger.error(f"Error searching memories: {e}")
-            return []
+            logger.error(f"Error loading data for {bucket_name}: {e}")
+            return {'texts': [], 'embeddings': None}
     
-    def _get_embedding(self, text: str) -> np.ndarray:
+    def get_embedding(self, text: str) -> np.ndarray:
         """Generate embedding for text using Gemini"""
         try:
             result = genai.embed_content(
@@ -238,6 +205,57 @@ class RAGSystem:
         except Exception as e:
             logger.error(f"Error generating embedding: {e}")
             return np.random.random(768)  # Fallback random embedding
+    
+    def search_memories(self, query: str, twin_id: str, scenario: str, mental_health_type: str, k: int = 10) -> List[str]:
+        """Search for relevant memories using cosine similarity"""
+        bucket_name = f"{scenario}_{mental_health_type}"
+        data = self.load_embeddings_data(bucket_name)
+        
+        if not data['texts']:
+            logger.warning(f"No memories available for bucket: {bucket_name}")
+            return []
+        
+        try:
+            # Generate query embedding
+            query_embedding = self.get_embedding(query)
+            
+            if data['embeddings'] is not None:
+                # Use pre-computed embeddings
+                embeddings_matrix = data['embeddings']
+                
+                # Calculate cosine similarities
+                query_embedding = query_embedding.reshape(1, -1)
+                similarities = cosine_similarity(query_embedding, embeddings_matrix)[0]
+                
+                # Get top k indices
+                top_indices = np.argsort(similarities)[::-1][:k]
+                
+                # Return top chunks
+                return [data['texts'][idx] for idx in top_indices if idx < len(data['texts'])]
+            else:
+                # Fallback: generate embeddings on-demand (slower but works)
+                logger.info(f"Computing embeddings on-demand for {len(data['texts'])} texts")
+                
+                similarities = []
+                for i, text in enumerate(data['texts']):
+                    text_embedding = self.get_embedding(text)
+                    similarity = np.dot(query_embedding, text_embedding) / (
+                        np.linalg.norm(query_embedding) * np.linalg.norm(text_embedding)
+                    )
+                    similarities.append((similarity, i))
+                
+                # Sort by similarity and get top k
+                similarities.sort(reverse=True)
+                top_indices = [idx for _, idx in similarities[:k]]
+                
+                return [data['texts'][idx] for idx in top_indices]
+        
+        except Exception as e:
+            logger.error(f"Error searching memories: {e}")
+            # Fallback to random selection
+            import random
+            n_chunks = min(k, len(data['texts']))
+            return random.sample(data['texts'], n_chunks) if data['texts'] else []
     
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
         """Convert external memories to first-person perspective"""
@@ -284,7 +302,7 @@ Output example format: ["I remember being left out of a group chat by my classma
             return [f"I remember {memory.lower()}" for memory in memories[:5]]
 
 class TwinManager:
-    def __init__(self, db: DigitalTwinDatabase, rag_system: RAGSystem):
+    def __init__(self, db: DigitalTwinDatabase, rag_system: NumPyRAGSystem):
         self.db = db
         self.rag_system = rag_system
         self.twin_profiles = self.load_twin_profiles()
@@ -315,7 +333,6 @@ class TwinManager:
     
     def get_twin_config(self, twin_id: str) -> Dict:
         """Get configuration for a specific twin"""
-        # This should match the JavaScript configuration
         configs = {
             'kaiya': {'name': 'Kaiya', 'age': 15, 'grade': '9th', 'mental_health_type': 'healthy'},
             'ethan': {'name': 'Ethan', 'age': 14, 'grade': '9th', 'mental_health_type': 'healthy'},
@@ -400,22 +417,21 @@ class TwinManager:
 
 # Initialize system components
 db = DigitalTwinDatabase()
-rag_system = RAGSystem()
+rag_system = NumPyRAGSystem()
 twin_manager = TwinManager(db, rag_system)
+
+# [Rest of the Flask routes remain the same as before...]
 
 @app.route('/')
 def index():
-    """Main page with twin selection"""
     return render_template('index.html')
 
 @app.route('/chat/<twin_id>')
 def chat(twin_id):
-    """Chat page for specific twin"""
     twin_config = twin_manager.get_twin_config(twin_id)
     if not twin_config:
         return "Twin not found", 404
     
-    # Create or get session ID
     if 'session_id' not in session:
         session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
     
@@ -423,7 +439,6 @@ def chat(twin_id):
 
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
-    """Handle chat message"""
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
@@ -434,17 +449,11 @@ def send_message():
         if not message or not twin_id:
             return jsonify({'error': 'Message and twin_id required'}), 400
         
-        # Get or create session ID
         session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
         session['session_id'] = session_id
         
-        # Save user message
         db.save_message(twin_id, session_id, 'user', message, scenario, rag_enabled)
-        
-        # Generate response
         response = twin_manager.generate_response(twin_id, message, session_id, scenario, rag_enabled)
-        
-        # Save assistant response
         db.save_message(twin_id, session_id, 'assistant', response, scenario, rag_enabled)
         
         return jsonify({'response': response})
@@ -455,7 +464,6 @@ def send_message():
 
 @app.route('/api/switch_scenario', methods=['POST'])
 def switch_scenario():
-    """Handle scenario switching"""
     try:
         data = request.get_json()
         twin_id = data.get('twin_id')
@@ -466,10 +474,7 @@ def switch_scenario():
         
         session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
         
-        # Update session
         db.update_session(twin_id, session_id, scenario=scenario)
-        
-        # Save scenario change message
         db.save_message(twin_id, session_id, 'system', f'Environment changed to {scenario}', scenario)
         
         return jsonify({'success': True})
@@ -480,7 +485,6 @@ def switch_scenario():
 
 @app.route('/api/toggle_rag', methods=['POST'])
 def toggle_rag():
-    """Handle RAG toggle"""
     try:
         data = request.get_json()
         twin_id = data.get('twin_id')
@@ -491,28 +495,12 @@ def toggle_rag():
         
         session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
         
-        # Update session
         db.update_session(twin_id, session_id, rag_enabled=rag_enabled)
         
         return jsonify({'success': True})
     
     except Exception as e:
         logger.error(f"Error in toggle_rag: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/chat_history/<twin_id>')
-def get_chat_history(twin_id):
-    """Get chat history for a twin"""
-    try:
-        session_id = session.get('session_id')
-        if not session_id:
-            return jsonify({'messages': []})
-        
-        history = db.get_chat_history(twin_id, session_id)
-        return jsonify({'messages': history})
-    
-    except Exception as e:
-        logger.error(f"Error getting chat history: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
 if __name__ == '__main__':
