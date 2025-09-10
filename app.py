@@ -239,28 +239,44 @@ class ImprovedRAGSystem:
         if pkl_path.exists():
             try:
                 with open(pkl_path, "rb") as f:
-                    records = pickle.load(f)  # Expected: list[dict]
-                
-                # Align embeddings with texts by ID
-                for rec in records:
-                    if not isinstance(rec, dict):
+                    obj = pickle.load(f)  # 可能是 list[dict] / dict[id->vec] / list[(id, vec)]
+        
+                # 统一成可迭代的 (cid, emb)
+                items = []
+                if isinstance(obj, dict):
+                    items = list(obj.items())
+                elif isinstance(obj, list):
+                    for rec in obj:
+                        if isinstance(rec, dict):
+                            cid = rec.get("id") or rec.get("chunk_id") or rec.get("uid")
+                            emb = rec.get("embedding") or rec.get("values") or rec.get("vector")
+                            items.append((cid, emb))
+                        elif isinstance(rec, (list, tuple)) and len(rec) == 2:
+                            items.append((rec[0], rec[1]))
+                else:
+                    logger.warning(f"[RAG] Unsupported embeddings.pkl type: {type(obj)}")
+        
+                for cid, emb in items:
+                    if not cid or cid not in id2text:
                         continue
-                    
-                    cid = rec.get("id")
-                    emb = rec.get("embedding")
-                    
-                    if cid in id2text and isinstance(emb, list) and len(emb) > 0:
+                    # 兼容 ndarray / tuple / list
+                    if isinstance(emb, np.ndarray):
+                        emb = emb.astype(np.float32).tolist()
+                    elif isinstance(emb, tuple):
+                        emb = list(emb)
+        
+                    if isinstance(emb, list) and len(emb) > 0:
                         ids_aligned.append(cid)
                         texts_aligned.append(id2text[cid])
                         vecs_aligned.append(emb)
-                
+        
                 if vecs_aligned:
                     embeddings = np.array(vecs_aligned, dtype=np.float32)
                     logger.info(f"[RAG] Loaded {len(texts_aligned)} aligned text-embedding pairs from {bucket_dir}")
                     return {"ids": ids_aligned, "texts": texts_aligned, "embeddings": embeddings}
                 else:
-                    logger.warning(f"[RAG] No usable embeddings found in {pkl_path}")
-                    
+                    logger.warning(f"[RAG] No usable embeddings vectors after normalization in {pkl_path}")
+        
             except Exception as e:
                 logger.error(f"[RAG] Failed to read {pkl_path}: {e}")
 
@@ -606,7 +622,9 @@ class TwinManager:
         
         try:
             response = chat_model.generate_content(full_prompt)
-            return response.text.strip()
+            txt = response.text.strip()
+            txt = self._enforce_emotion_breaks(txt)  # ← 新增这一行
+            return txt
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return "Sorry, I'm having trouble thinking right now. Can you try again?"
