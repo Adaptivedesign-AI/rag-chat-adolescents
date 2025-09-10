@@ -728,7 +728,7 @@ input:checked + .slider:before {
     
     .twin-card {
         padding: 20px;
-        height: 400px;
+        height: 480px;
         max-width: none;
     }
     
