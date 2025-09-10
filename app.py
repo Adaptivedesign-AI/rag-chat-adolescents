@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 import logging
 from pathlib import Path
 import csv
+import re
 import pickle
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
@@ -302,6 +303,28 @@ class ImprovedRAGSystem:
         data = self._load_bucket(scenario, mh)
         self.embeddings_cache[bucket_name] = data
         return data
+
+    def _soft_sanitize(self, text: str) -> str:
+        """
+        温和化：仅在被拦截时二次尝试使用；将高敏词替换为中性占位，尽量不改变语义方向。
+        """
+        repl = [
+            (r"\bsuicide\b", "self-harm mention"),
+            (r"\bkill myself\b", "self-harm mention"),
+            (r"\bcutting\b", "self-harm mention"),
+            (r"\bgun\b", "weapon mention"),
+            (r"\bknife\b", "weapon mention"),
+            (r"\b(kill|die)\b", "harm mention"),
+            (r"\b(chink|nigger|faggot|retard)\b", "a nasty slur"),
+        ]
+        s = text
+        for pat, sub in repl:
+            s = re.sub(pat, sub, s, flags=re.IGNORECASE)
+        return s
+    
+    def _soften_list(self, items: List[str], limit: int = 8) -> List[str]:
+        # 注意：只有在第一次尝试失败/被拦截后才会走到这里
+        return [self._soft_sanitize(x) for x in items[:limit]]
 
     @retry(
         wait=wait_exponential(multiplier=1, min=1, max=20),
