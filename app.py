@@ -219,6 +219,33 @@ class ImprovedRAGSystem:
     def _soften_list(self, items: List[str], limit: int = 8) -> List[str]:
         return [self._soft_sanitize(x) for x in items[:limit]]
 
+    def _is_blocked(self, resp) -> bool:
+        """Check if response was blocked by safety filters"""
+        try:
+            if not getattr(resp, "candidates", None):
+                return True
+            c0 = resp.candidates[0]
+            if not getattr(c0, "content", None) or not getattr(c0.content, "parts", None):
+                return True
+            pf = getattr(resp, "prompt_feedback", None)
+            if pf and getattr(pf, "block_reason", None):
+                br = str(pf.block_reason)
+                if br and "BLOCK_REASON_UNSPECIFIED" not in br:
+                    return True
+        except Exception:
+            pass
+        return False
+
+    def _extract_json_list(self, txt: str):
+        """Extract JSON list from response text"""
+        s = txt.strip()
+        if s.startswith("```json"):
+            s = s[7:-3].strip()
+        elif s.startswith("```"):
+            s = s[3:-3].strip()
+        obj = json.loads(s)
+        return obj if isinstance(obj, list) else None
+
     def _resolve_bucket_dir(self, scenario: str, mh: str) -> Path:
         """
         Resolve bucket directory with alias support
@@ -444,89 +471,73 @@ class ImprovedRAGSystem:
             return results
 
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
-        """Convert external memories to first-person perspective with enhanced safety"""
+        """Convert external memories to first-person perspective with improved safety and retry logic"""
         if not memories:
             return []
-        
-        try:
-            # 先做温和化 + 限制条数，降低被安全拦截概率
-            memories = self._soften_list(memories, limit=8)
-            memories_text = '\n- '.join(memories)
 
-            prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
-You will be given external scene descriptions (from video transcripts).
-Rewrite them as if they were **your own personal memories**, in first-person voice.
+        base_prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
+Rewrite the external scene descriptions as **my own memories** in first-person.
+Rules:
+- Keep only what plausibly belongs to "me"; 1–2 sentences each.
+- Do not mention videos/prompts.
+- Output **JSON list of strings** only.
 
 Character Profile: {twin_profile}
 
+External descriptions:
+- """ + "\n- ".join(memories)
+
+        # 1) Try with original text first (expecting JSON)
+        try:
+            r1 = chat_model.generate_content(
+                base_prompt,
+                generation_config={"temperature": 0.3, "response_mime_type": "application/json"},
+            )
+            if not self._is_blocked(r1):
+                t1 = r1.text if hasattr(r1, "text") else r1.candidates[0].content.parts[0].text
+                p1 = self._extract_json_list(t1)
+                if p1:
+                    logger.info(f"[internalize] First attempt succeeded with {len(p1)} memories")
+                    return p1
+        except Exception as e:
+            logger.warning(f"[internalize] first attempt failed: {e}")
+
+        # 2) If blocked/failed → sanitize and retry
+        softened = self._soften_list(memories, limit=8)
+        safe_prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
+Rewrite the external scene descriptions as **my own memories** in first-person.
 Rules:
-- Only keep the parts that could belong to "me".
-- Rewrite in natural language, not clinical labels.
-- If something does not fit "my perspective", skip it.
-- Do not state or imply self-harm plans, graphic violence, or explicit slurs; paraphrase safely (e.g., 'a hurtful nickname').
-- Do not mention that these are videos or external descriptions — write them as if they are purely my memories.
-- Keep each memory short (1–2 sentences).
-- Output strictly as a JSON list of strings.
+- Keep only what plausibly belongs to "me"; 1–2 sentences each.
+- Do not mention videos/prompts.
+- Output **JSON list of strings** only.
+
+Character Profile: {twin_profile}
 
 External descriptions:
-- {memories_text}
+- """ + "\n- ".join(softened) + """
 
-Output example format: ["I remember being left out of a group chat by my classmates.", "I remember panicking before giving a class presentation."]"""
+Safety constraints:
+- Paraphrase any harmful or explicit content gently (e.g., "a hurtful nickname").
+- Do not include plans/instructions for self-harm, violence, or retaliation.
+"""
 
-            # 温度略低，减少发散
-            response = chat_model.generate_content(
-                prompt,
-                generation_config={"temperature": 0.3}
+        try:
+            r2 = chat_model.generate_content(
+                safe_prompt,
+                generation_config={"temperature": 0.2, "response_mime_type": "application/json"},
             )
-
-            if not response.candidates:
-                logger.warning("No candidates in response, using fallback")
-                return [f"I remember {m.lower()}" for m in memories[:5]]
-
-            candidate = response.candidates[0]
-            if not hasattr(candidate, 'content') or not candidate.content or not candidate.content.parts:
-                logger.warning("No content parts in response, using fallback")
-                return [f"I remember {m.lower()}" for m in memories[:5]]
-
-            response_text = candidate.content.parts[0].text.strip()
-
-            # 解析 JSON
-            jt = response_text
-            if jt.startswith('```json'):
-                jt = jt[7:-3]
-            elif jt.startswith('```'):
-                jt = jt[3:-3]
-
-            parsed = json.loads(jt)
-            if isinstance(parsed, list) and parsed:
-                return parsed
-
-            # 降级重试：更温和指令
-            logger.info("First attempt failed, trying softer prompt")
-            soft_prompt = prompt + "\n\nReminder: Keep all content safe and non-graphic. Paraphrase any harmful content very gently."
-            response2 = chat_model.generate_content(
-                soft_prompt, 
-                generation_config={"temperature": 0.2}
-            )
-            
-            if response2.candidates and response2.candidates[0].content and response2.candidates[0].content.parts:
-                txt2 = response2.candidates[0].content.parts[0].text.strip()
-                if txt2.startswith('```json'):
-                    txt2 = txt2[7:-3]
-                elif txt2.startswith('```'):
-                    txt2 = txt2[3:-3]
-                parsed2 = json.loads(txt2)
-                if isinstance(parsed2, list) and parsed2:
-                    return parsed2
-            
-            return [f"I remember {m.lower()}" for m in memories[:5]]
-
-        except json.JSONDecodeError as e:
-            logger.error(f"JSON parsing error in internalize_memories: {e}")
-            return [f"I remember {m.lower()}" for m in memories[:5]]
+            if not self._is_blocked(r2):
+                t2 = r2.text if hasattr(r2, "text") else r2.candidates[0].content.parts[0].text
+                p2 = self._extract_json_list(t2)
+                if p2:
+                    logger.info(f"[internalize] Second attempt succeeded with {len(p2)} memories")
+                    return p2
         except Exception as e:
-            logger.error(f"Error internalizing memories: {e}")
-            return [f"I remember {m.lower()}" for m in memories[:5]]
+            logger.warning(f"[internalize] second attempt failed: {e}")
+
+        # 3) Fallback to simple transformation
+        logger.warning("[internalize] Both attempts failed, using fallback")
+        return [f"I remember {m.lower()}" for m in memories[:5]]
 
 class TwinManager:
     def __init__(self, db: DigitalTwinDatabase, rag_system: ImprovedRAGSystem):
@@ -578,6 +589,25 @@ class TwinManager:
             'tavian': {'name': 'Tavian', 'age': 17, 'grade': '12th', 'mental_health_type': 'depression'}
         }
         return configs.get(twin_id, {})
+    
+    def _enforce_emotion_breaks(self, text: str) -> str:
+        """Enforce two line breaks before emotion tags"""
+        if not text:
+            return text
+        
+        pattern = re.compile(r"\n*([ \t]*Emotion\s*tag\s*:\s*[^\n]+)$", re.IGNORECASE)
+        m = pattern.search(text)
+        if not m:
+            return text
+        
+        start = m.start(1)
+        before, tagline = text[:start], text[start:]
+        
+        # Count existing trailing newlines
+        tail = len(before) - len(before.rstrip("\n"))
+        need = max(0, 2 - tail)
+        
+        return before.rstrip("\n") + ("\n" * (tail + need)) + tagline
     
     def generate_response(self, twin_id: str, user_message: str, session_id: str, scenario: str = 'neutral', rag_enabled: bool = False) -> str:
         """Generate a response from the digital twin"""
@@ -637,7 +667,7 @@ class TwinManager:
         try:
             response = chat_model.generate_content(full_prompt)
             txt = response.text.strip()
-            txt = self._enforce_emotion_breaks(txt)  # 强制格式化emotion tag
+            txt = self._enforce_emotion_breaks(txt)  # Apply emotion tag formatting
             return txt
         except Exception as e:
             logger.error(f"Error generating response: {e}")
@@ -687,136 +717,3 @@ class TwinManager:
             "ROLEPLAY HINTS\n"
             "- Keep descriptions concrete and first-person. Stay within safety guidelines.\n"
         )
-
-# Initialize system components
-db = DigitalTwinDatabase()
-rag_system = ImprovedRAGSystem()
-twin_manager = TwinManager(db, rag_system)
-
-# Flask routes
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/chat/<twin_id>')
-def chat(twin_id):
-    twin_config = twin_manager.get_twin_config(twin_id)
-    if not twin_config:
-        return "Twin not found", 404
-    
-    if 'session_id' not in session:
-        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
-    
-    return render_template('chat.html')
-
-@app.route('/api/send_message', methods=['POST'])
-def send_message():
-    try:
-        data = request.get_json()
-        message = data.get('message', '').strip()
-        twin_id = data.get('twin_id')
-        scenario = data.get('scenario', 'neutral')
-        rag_enabled = data.get('rag_enabled', False)
-        
-        if not message or not twin_id:
-            return jsonify({'error': 'Message and twin_id required'}), 400
-        
-        session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
-        session['session_id'] = session_id
-        
-        # Save user message
-        db.save_message(twin_id, session_id, 'user', message, scenario, rag_enabled)
-        
-        # Generate response
-        response = twin_manager.generate_response(twin_id, message, session_id, scenario, rag_enabled)
-        
-        # Save assistant response
-        db.save_message(twin_id, session_id, 'assistant', response, scenario, rag_enabled)
-        
-        return jsonify({'response': response})
-    
-    except Exception as e:
-        logger.error(f"Error in send_message: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/switch_scenario', methods=['POST'])
-def switch_scenario():
-    try:
-        data = request.get_json()
-        twin_id = data.get('twin_id')
-        scenario = data.get('scenario')
-        
-        if not twin_id or not scenario:
-            return jsonify({'error': 'twin_id and scenario required'}), 400
-        
-        session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
-        
-        db.update_session(twin_id, session_id, scenario=scenario)
-        db.save_message(twin_id, session_id, 'system', f'Environment changed to {scenario}', scenario)
-        
-        return jsonify({'success': True})
-    
-    except Exception as e:
-        logger.error(f"Error in switch_scenario: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/toggle_rag', methods=['POST'])
-def toggle_rag():
-    try:
-        data = request.get_json()
-        twin_id = data.get('twin_id')
-        rag_enabled = data.get('rag_enabled', False)
-        
-        if not twin_id:
-            return jsonify({'error': 'twin_id required'}), 400
-        
-        session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
-        
-        db.update_session(twin_id, session_id, rag_enabled=rag_enabled)
-        
-        return jsonify({'success': True})
-    
-    except Exception as e:
-        logger.error(f"Error in toggle_rag: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-@app.route('/api/debug_rag', methods=['POST'])
-def debug_rag():
-    """Debug endpoint to see RAG retrieval results"""
-    try:
-        data = request.get_json()
-        query = data.get('query', '')
-        twin_id = data.get('twin_id')
-        scenario = data.get('scenario', 'neutral')
-        
-        if not query or not twin_id:
-            return jsonify({'error': 'Query and twin_id required'}), 400
-        
-        twin_config = twin_manager.get_twin_config(twin_id)
-        if not twin_config:
-            return jsonify({'error': 'Invalid twin_id'}), 400
-        
-        # Get raw memories
-        memories = rag_system.search_memories(
-            query, twin_id, scenario, twin_config['mental_health_type'], k=5
-        )
-        
-        # Get internalized memories
-        twin_profile = twin_manager.twin_profiles.get(twin_id, "")
-        internalized = rag_system.internalize_memories(memories, twin_config, twin_profile)
-        
-        return jsonify({
-            'query': query,
-            'raw_memories': memories,
-            'internalized_memories': internalized,
-            'bucket': f"{scenario}_{twin_config['mental_health_type']}"
-        })
-    
-    except Exception as e:
-        logger.error(f"Error in debug_rag: {e}")
-        return jsonify({'error': 'Internal server error'}), 500
-
-if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5000))
-    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
