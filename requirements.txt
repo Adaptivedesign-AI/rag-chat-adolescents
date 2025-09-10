@@ -6,3 +6,4 @@ gunicorn==21.2.0
 Werkzeug==2.3.7
 numpy
 scikit-learn
+tenacity>=8.0.0
