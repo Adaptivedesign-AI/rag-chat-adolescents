@@ -486,6 +486,24 @@ class TwinManager:
         self.rag_system = rag_system
         self.twin_profiles = self.load_twin_profiles()
         self.shared_prompt = self.load_shared_prompt()
+
+    def _enforce_emotion_breaks(self, text: str) -> str:
+        """
+        强制在最后一次出现的 'Emotion tag: ...' 之前插入**两个换行**。
+        """
+        if not text:
+            return text
+        pattern = re.compile(r"(?:^|\n)[ \t]*(Emotion\s*tag\s*:\s*[^\n]+)\s*$", re.IGNORECASE)
+        last = None
+        for m in pattern.finditer(text):
+            last = m
+        if not last:
+            return text
+        start = last.start(1)
+        before, tagline = text[:start], text[start:]
+        tail_breaks = len(before) - len(before.rstrip("\n"))
+        need = max(0, 2 - tail_breaks)
+        return before.rstrip("\n") + ("\n" * (tail_breaks + need)) + tagline
     
     def load_twin_profiles(self) -> Dict[str, str]:
         """Load individual twin profiles from CSV"""
