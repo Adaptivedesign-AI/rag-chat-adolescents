@@ -477,7 +477,7 @@ class ImprovedRAGSystem:
         try:
             r1 = chat_model.generate_content(
                 base_prompt,
-                generation_config={"temperature": 0.3, "response_mime_type": "application/json"},
+                generation_config={"temperature": 0.3},
             )
             t1 = r1.text if hasattr(r1, "text") else r1.candidates[0].content.parts[0].text
             p1 = _extract_json_list(t1)
@@ -507,7 +507,7 @@ class ImprovedRAGSystem:
         try:
             r2 = chat_model.generate_content(
                 safe_prompt,
-                generation_config={"temperature": 0.2, "response_mime_type": "application/json"},
+                generation_config={"temperature": 0.2},
             )
             t2 = r2.text if hasattr(r2, "text") else r2.candidates[0].content.parts[0].text
             p2 = _extract_json_list(t2)
