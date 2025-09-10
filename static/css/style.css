@@ -954,3 +954,46 @@ body {
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial, 
                "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
 }
+
+/* ① 让换行/超长词在气泡里表现正确 —— 你已配过，放在底部再声明一遍以确保优先级 */
+.message-content{
+  white-space: pre-wrap;     /* \n -> 换行，\n\n -> 空行 */
+  word-break: break-word;    /* 长链接/长词自动换行 */
+  line-height: 1.6;
+}
+
+/* ② Emoji 字体回退，确保各平台都显示彩色表情 */
+body{
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Arial,
+               "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+}
+
+/* ③ 舞台指示→表情：给 <span class="stage-emoji">😤</span> 更贴近文字的排版 */
+.message-content .stage-emoji{
+  display: inline-block;
+  line-height: 1;         /* 去掉上下多余空白 */
+  vertical-align: -2px;   /* 与文本基线更对齐，可在 -1px ~ -3px 微调 */
+  margin: 0 2px;          /* 两侧留一点空隙 */
+  font-size: 1em;         /* 跟随文本大小 */
+}
+
+/* （可选）如果有没被替换成 emoji 的舞台指示仍以文字展示，如 [sighs] */
+.message-content .stage-dir{
+  opacity: .8;
+  font-style: italic;
+  color: #5a6c7d;
+}
+
+/* ④ Emotion/Emotional tag 单独成行 + 与上文拉开距离
+   —— 前端把文本替换为 <span class="emotion-tag">Emotion tag: ...</span> 后生效 */
+.message-content .emotion-tag{
+  display: block;         /* 独占一行 */
+  margin-top: 12px;       /* 相当于你想要的 “多出一空行” 的视觉效果 */
+  color: #6c757d;
+  font-style: italic;
+}
+
+/* ⑤ 气泡内基础排版的小细节（可选） */
+.message-content p{ margin: 0 0 8px; }
+.message-content a{ color: #1E5175; text-decoration: underline; }
+.message-content code{ background: #f6f8fa; padding: .1em .3em; border-radius: 4px; }
