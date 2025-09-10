@@ -1,4 +1,370 @@
-/* ===== GLOBAL STYLES ===== */
+/* Mental Health Category Layout - Updated for Horizontal Cards */
+.mental-health-categories {
+    display: grid;
+    grid-template-columns: 1fr 2px 1fr 2px 1fr;
+    gap: 30px;
+    width: 100%;
+    align-items: start;
+}
+
+/* Vertical dividers between categories */
+.mental-health-categories::before,
+.mental-health-categories::after {
+    content: '';
+    grid-column: 2;
+    width: 2px;
+    height: 100%;
+    background: linear-gradient(to bottom, transparent, #ccc 20%, #ccc 80%, transparent);
+    justify-self: center;
+}
+
+.mental-health-categories::after {
+    grid-column: 4;
+}
+
+.category-column {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.category-column:nth-child(1) { grid-column: 1; }
+.category-column:nth-child(2) { grid-column: 3; }
+.category-column:nth-child(3) { grid-column: 5; }
+
+.category-title {
+    text-align: center;
+    font-size: 1.6rem;
+    font-weight: bold;
+    padding: 15px 20px;
+    border-radius: 15px;
+    margin-bottom: 20px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    position: relative;
+    overflow: hidden;
+}
+
+.healthy-title {
+    background: linear-gradient(135deg, #4CAF50, #81C784);
+    color: white;
+    border: 3px solid #4CAF50;
+}
+
+.anxiety-title {
+    background: linear-gradient(135deg, #FF9800, #FFB74D);
+    color: white;
+    border: 3px solid #FF9800;
+}
+
+.depression-title {
+    background: linear-gradient(135deg, #5D4E75, #7E6B8F);
+    color: white;
+    border: 3px solid #5D4E75;
+}
+
+.category-twins {
+    display: flex;
+    flex-direction: column;
+    gap: 25px;
+}
+
+/* Horizontal Twin Cards */
+.twin-card-horizontal {
+    display: flex;
+    align-items: flex-start;
+    gap: 20px;
+    padding: 25px;
+    border-radius: 20px;
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.1);
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
+    min-height: 180px;
+}
+
+.twin-card-horizontal::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    transition: opacity 0.3s ease;
+    opacity: 0;
+}
+
+.twin-card-horizontal:hover::before {
+    opacity: 1;
+}
+
+.twin-card-horizontal:hover {
+    transform: translateY(-8px);
+    box-shadow: 0 15px 35px rgba(0,0,0,0.15);
+}
+
+/* Healthy Cards - Light Green/Teal */
+.twin-card-horizontal.healthy {
+    background: linear-gradient(135deg, rgba(76, 175, 80, 0.1), rgba(255, 255, 255, 0.95));
+    border: 2px solid rgba(76, 175, 80, 0.3);
+}
+
+.twin-card-horizontal.healthy::before {
+    background: linear-gradient(90deg, #4CAF50, #81C784);
+}
+
+.twin-card-horizontal.healthy:hover {
+    border-color: #4CAF50;
+}
+
+/* Anxiety Cards - Medium Orange/Amber */
+.twin-card-horizontal.anxiety {
+    background: linear-gradient(135deg, rgba(255, 152, 0, 0.15), rgba(255, 255, 255, 0.95));
+    border: 2px solid rgba(255, 152, 0, 0.4);
+}
+
+.twin-card-horizontal.anxiety::before {
+    background: linear-gradient(90deg, #FF9800, #FFB74D);
+}
+
+.twin-card-horizontal.anxiety:hover {
+    border-color: #FF9800;
+}
+
+/* Depression Cards - Darker Purple/Blue */
+.twin-card-horizontal.depression {
+    background: linear-gradient(135deg, rgba(93, 78, 117, 0.2), rgba(255, 255, 255, 0.95));
+    border: 2px solid rgba(93, 78, 117, 0.5);
+}
+
+.twin-card-horizontal.depression::before {
+    background: linear-gradient(90deg, #5D4E75, #7E6B8F);
+}
+
+.twin-card-horizontal.depression:hover {
+    border-color: #5D4E75;
+}
+
+/* Avatar Styling */
+.twin-avatar {
+    flex-shrink: 0;
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    overflow: hidden;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+    border: 4px solid white;
+    position: relative;
+}
+
+.twin-avatar img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.avatar-fallback {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 2.5rem;
+    font-weight: bold;
+    color: white;
+    background: linear-gradient(135deg, #7F96B2, #B7DCED);
+}
+
+/* Twin Information */
+.twin-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.twin-name {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: #2C3E50;
+    margin-bottom: 5px;
+}
+
+.twin-age {
+    font-size: 1rem;
+    color: #7F8C8D;
+    font-weight: 500;
+    margin-bottom: 10px;
+}
+
+.twin-description {
+    font-size: 0.95rem;
+    color: #5D6D7E;
+    line-height: 1.5;
+    margin-bottom: 20px;
+    flex-grow: 1;
+}
+
+.start-chat-btn {
+    align-self: flex-start;
+    background: linear-gradient(135deg, #34495E, #5D6D7E);
+    color: white;
+    border: none;
+    padding: 12px 24px;
+    border-radius: 25px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 12px rgba(52, 73, 94, 0.3);
+}
+
+.start-chat-btn:hover {
+    background: linear-gradient(135deg, #2C3E50, #34495E);
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(52, 73, 94, 0.4);
+}
+
+/* Category-specific button colors */
+.healthy .start-chat-btn {
+    background: linear-gradient(135deg, #4CAF50, #66BB6A);
+    box-shadow: 0 4px 12px rgba(76, 175, 80, 0.3);
+}
+
+.healthy .start-chat-btn:hover {
+    background: linear-gradient(135deg, #388E3C, #4CAF50);
+    box-shadow: 0 6px 16px rgba(76, 175, 80, 0.4);
+}
+
+.anxiety .start-chat-btn {
+    background: linear-gradient(135deg, #FF9800, #FFA726);
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+.anxiety .start-chat-btn:hover {
+    background: linear-gradient(135deg, #F57C00, #FF9800);
+    box-shadow: 0 6px 16px rgba(255, 152, 0, 0.4);
+}
+
+.depression .start-chat-btn {
+    background: linear-gradient(135deg, #5D4E75, #7E6B8F);
+    box-shadow: 0 4px 12px rgba(93, 78, 117, 0.3);
+}
+
+.depression .start-chat-btn:hover {
+    background: linear-gradient(135deg, #4A3D5C, #5D4E75);
+    box-shadow: 0 6px 16px rgba(93, 78, 117, 0.4);
+}
+
+/* Remove the old twin-card styles since we're using horizontal cards */
+.twin-card {
+    display: none;
+}
+
+/* Responsive design for the new horizontal layout */
+@media (max-width: 1200px) {
+    .mental-health-categories {
+        grid-template-columns: 1fr;
+        gap: 40px;
+    }
+    
+    .mental-health-categories::before,
+    .mental-health-categories::after {
+        display: none;
+    }
+    
+    .category-column {
+        gap: 20px;
+    }
+    
+    .category-column:nth-child(1),
+    .category-column:nth-child(2),
+    .category-column:nth-child(3) {
+        grid-column: 1;
+    }
+    
+    .twin-card-horizontal {
+        min-height: 160px;
+        padding: 20px;
+    }
+    
+    .twin-avatar {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .twin-name {
+        font-size: 1.6rem;
+    }
+}
+
+@media (max-width: 768px) {
+    .twin-card-horizontal {
+        flex-direction: column;
+        text-align: center;
+        min-height: auto;
+        padding: 20px;
+        gap: 15px;
+    }
+    
+    .twin-avatar {
+        align-self: center;
+        width: 100px;
+        height: 100px;
+    }
+    
+    .twin-info {
+        align-items: center;
+        text-align: center;
+    }
+    
+    .start-chat-btn {
+        align-self: center;
+    }
+    
+    .category-title {
+        font-size: 1.3rem;
+        padding: 12px 16px;
+    }
+}
+
+@media (max-width: 480px) {
+    .twin-card-horizontal {
+        padding: 15px;
+        gap: 12px;
+    }
+    
+    .twin-avatar {
+        width: 80px;
+        height: 80px;
+    }
+    
+    .twin-name {
+        font-size: 1.4rem;
+    }
+    
+    .twin-age {
+        font-size: 0.9rem;
+    }
+    
+    .twin-description {
+        font-size: 0.9rem;
+    }
+    
+    .start-chat-btn {
+        padding: 10px 20px;
+        font-size: 0.8rem;
+    }
+    
+    .category-title {
+        font-size: 1.1rem;
+        padding: 10px 14px;
+    }
+}/* ===== GLOBAL STYLES ===== */
 * {
     margin: 0;
     padding: 0;
@@ -741,126 +1107,4 @@ input:checked + .slider:before {
 
 .mb-20 {
     margin-bottom: 20px;
-}
-
-/* Additional CSS for chat controls and character info */
-
-.chat-controls {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.control-button {
-    background: linear-gradient(135deg, #C6B093, #FCF3CB);
-    color: #5a6c7d;
-    border: 2px solid #C6B093;
-    padding: 10px 15px;
-    border-radius: 12px;
-    font-size: 0.9rem;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    text-align: center;
-}
-
-.control-button:hover {
-    background: linear-gradient(135deg, #b8a085, #f0e6b5);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-.character-info {
-    background: rgba(127, 150, 178, 0.1);
-    border-radius: 12px;
-    padding: 15px;
-    border: 2px solid rgba(127, 150, 178, 0.3);
-}
-
-.character-stat {
-    margin-bottom: 8px;
-    font-size: 0.85rem;
-    color: #5a6c7d;
-}
-
-.character-stat strong {
-    color: #7F96B2;
-}
-
-/* System message styles */
-.message.system {
-    justify-content: center;
-}
-
-.message.system .message-avatar {
-    background: #f0f0f0;
-    color: #666;
-    border: 2px solid #ddd;
-}
-
-.message.system .message-content {
-    background: #f8f9fa;
-    color: #666;
-    font-style: italic;
-    text-align: center;
-    border: 1px solid #dee2e6;
-    max-width: 50%;
-}
-
-/* Enhanced scrollbar styles for better UX */
-.chat-messages::-webkit-scrollbar {
-    width: 8px;
-}
-
-.chat-messages::-webkit-scrollbar-track {
-    background: rgba(183, 220, 237, 0.1);
-    border-radius: 4px;
-}
-
-.chat-messages::-webkit-scrollbar-thumb {
-    background: rgba(127, 150, 178, 0.4);
-    border-radius: 4px;
-}
-
-.chat-messages::-webkit-scrollbar-thumb:hover {
-    background: rgba(127, 150, 178, 0.6);
-}
-
-/* Improved mobile responsiveness for controls */
-@media (max-width: 768px) {
-    .chat-controls {
-        flex-direction: row;
-        gap: 5px;
-    }
-    
-    .control-button {
-        font-size: 0.8rem;
-        padding: 8px 12px;
-        flex: 1;
-    }
-    
-    .character-info {
-        padding: 10px;
-    }
-    
-    .character-stat {
-        font-size: 0.8rem;
-        margin-bottom: 5px;
-    }
-}
-
-/* Loading state improvements */
-.send-button.loading {
-    background: linear-gradient(135deg, #ccc, #ddd);
-    cursor: not-allowed;
-}
-
-.send-button.loading::after {
-    content: '⏳';
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
 }
