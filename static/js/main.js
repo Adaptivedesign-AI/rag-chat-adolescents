@@ -508,23 +508,14 @@ function addMessage(sender, content, timestamp = new Date()) {
     const messageClass = sender === 'system' ? 'system' : sender;
     const systemStyle = sender === 'system' ? 'style="background: #f0f0f0; color: #666; font-style: italic; text-align: center;"' : '';
     
-    // 针对不同 sender 做不同渲染
-    let rendered;
-    if (sender === 'twin' || sender === 'system') {
-      rendered = renderAssistantText(String(content || ''));
-    } else {
-      // 用户内容：不做舞台指示替换，只安全转义+换行
-      rendered = preserveLineBreaks(escapeHTML(String(content || '')));
-    }
-    
     messageDiv.innerHTML = `
-      <div class="message-avatar">${avatarContent}</div>
-      <div class="message-content" ${systemStyle}>
-        ${rendered}
-        <div class="message-time" style="font-size:0.7rem;opacity:0.6;margin-top:5px;">
-          ${formatTime(timestamp)}
+        <div class="message-avatar">${avatarContent}</div>
+        <div class="message-content" ${systemStyle}>
+            ${content}
+            <div class="message-time" style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">
+                ${formatTime(timestamp)}
+            </div>
         </div>
-      </div>
     `;
     
     messagesContainer.appendChild(messageDiv);
