@@ -508,14 +508,23 @@ function addMessage(sender, content, timestamp = new Date()) {
     const messageClass = sender === 'system' ? 'system' : sender;
     const systemStyle = sender === 'system' ? 'style="background: #f0f0f0; color: #666; font-style: italic; text-align: center;"' : '';
     
+    // 渲染文本（注意区分 user / twin / system）
+    let rendered;
+    if (sender === 'twin' || sender === 'system') {
+      rendered = renderAssistantText(String(content || ''));
+    } else {
+      // 用户文本：只转义 + 换行（不要做舞台指示替换）
+      rendered = preserveLineBreaks(escapeHTML(String(content || '')));
+    }
+    
     messageDiv.innerHTML = `
-        <div class="message-avatar">${avatarContent}</div>
-        <div class="message-content" ${systemStyle}>
-            ${content}
-            <div class="message-time" style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">
-                ${formatTime(timestamp)}
-            </div>
+      <div class="message-avatar">${avatarContent}</div>
+      <div class="message-content" ${systemStyle}>
+        ${rendered}
+        <div class="message-time" style="font-size:.7rem;opacity:.6;margin-top:5px;">
+          ${formatTime(timestamp)}
         </div>
+      </div>
     `;
     
     messagesContainer.appendChild(messageDiv);
@@ -593,7 +602,93 @@ function goBack() {
         window.location.href = '/';
     }, 200);
 }
+// ===== SAFE RENDER PIPELINE FOR innerHTML =====
+const STAGE_MAP = {
+  scoffs: "😤",
+  sighs: "😮‍💨",
+  laughs: "😆",
+  chuckles: "😄",
+  sobs: "😭",
+  cries: "😢",
+  gasps: "😯",
+  groans: "😖",
+  grins: "😏",
+  shrugs: "🤷",
+  nods: "🫡",
+  shakes_head: "🙅",
+  whispers: "🤫",
+  clears_throat: "🫤",
+  coughs: "😷",
+  sneezes: "🤧",
+};
 
+function escapeHTML(str) {
+  return str
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;").replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
+// [verb words] -> emoji 或兜底成斜体（已转义后替换，安全）
+function stageDirectionsToInline(html) {
+  // 1) 优先按映射替换
+  html = html.replace(/\[([a-z\s\-]+)\]/gi, (m, raw) => {
+    const key = raw.trim().toLowerCase().replace(/\s+/g, "_");
+    const emoji = STAGE_MAP[key];
+    if (emoji) return `<span class="stage-emoji" aria-label="${raw}">${emoji}</span>`;
+    // 2) 未命中映射：以斜体兜底
+    return `<span class="stage-dir">[${raw}]</span>`;
+  });
+  return html;
+}
+
+// Emotion/Emotional tag 单独包裹，并在其前插入一个空行（等价于 \n\n）
+function wrapEmotionTag(html) {
+  // 找到最后一个 Emotion(al) tag
+  const re = /(Emotion(?:al)?\s*tag\s*:\s*[^\n<]+)/ig;
+  let lastMatch = null;
+  html.replace(re, (m, _1, idx) => { lastMatch = { m, idx }; });
+  if (!lastMatch) return html;
+
+  // 在最后一次出现处包 span，并在其前面插入 <br><br>
+  const before = html.slice(0, lastMatch.idx).replace(/(<br>\s*)+$/i, ""); // 去末尾多余 <br>
+  const after = html.slice(lastMatch.idx + lastMatch.m.length);
+  const wrapped = `<span class="emotion-tag">${lastMatch.m}</span>`;
+  return `${before}<br><br>${wrapped}${after}`;
+}
+
+function linkify(html) {
+  // 简单链接识别（可选）
+  return html.replace(
+    /\b(https?:\/\/[^\s<]+)\b/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+}
+
+function preserveLineBreaks(html) {
+  // 把 \n 变成 <br>，让 innerHTML 与 pre-wrap 一致
+  return html.replace(/\n/g, "<br>");
+}
+
+// 核心：把“模型文本”变成安全的 HTML 片段
+function renderAssistantText(plainText) {
+  // 1) 先整体转义
+  let html = escapeHTML(plainText);
+
+  // 2) 舞台指示 -> emoji 或斜体
+  html = stageDirectionsToInline(html);
+
+  // 3) 链接可点（可选）
+  html = linkify(html);
+
+  // 4) 换行
+  html = preserveLineBreaks(html);
+
+  // 5) Emotion tag 包裹 + 前置空行（必须放在换行之后执行一次，才能在最终 HTML 里插入 <br><br>）
+  html = wrapEmotionTag(html);
+
+  return html;
+}
 // ===== CHAT UTILITIES =====
 function clearChat() {
     const messagesContainer = document.getElementById('chatMessages');
