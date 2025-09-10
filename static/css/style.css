@@ -1,285 +1,4 @@
-/* Mental Health Category Layout - Modern Gradient Design */
-.mental-health-categories {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    gap: 40px;
-    width: 100%;
-}
-
-.category-column {
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
-}
-
-.category-title {
-    text-align: center;
-    font-size: 1.8rem;
-    font-weight: bold;
-    padding: 0;
-    margin-bottom: 25px;
-    text-transform: capitalize;
-    letter-spacing: 0.5px;
-    background: linear-gradient(45deg, transparent, transparent);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.healthy-title {
-    background: linear-gradient(45deg, #4ade80, #22c55e, #16a34a);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.anxiety-title {
-    background: linear-gradient(45deg, #f59e0b, #f97316, #ea580c);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.depression-title {
-    background: linear-gradient(45deg, #8b5cf6, #7c3aed, #6d28d9);
-    -webkit-background-clip: text;
-    background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.category-twins {
-    display: flex;
-    flex-direction: column;
-    gap: 25px;
-}
-
-/* Modern Twin Cards with Beautiful Gradients */
-.twin-card-horizontal {
-    padding: 30px;
-    border-radius: 24px;
-    transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
-    box-shadow: 0 10px 30px rgba(0,0,0,0.1);
-    cursor: pointer;
-    position: relative;
-    overflow: hidden;
-    min-height: 220px;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    border: 1px solid rgba(255,255,255,0.2);
-    backdrop-filter: blur(10px);
-}
-
-.twin-card-horizontal::before {
-    content: '';
-    position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: linear-gradient(135deg, rgba(255,255,255,0.1), rgba(255,255,255,0.05));
-    border-radius: 24px;
-    padding: 2px;
-    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
-    mask-composite: exclude;
-    opacity: 0;
-    transition: opacity 0.3s ease;
-}
-
-.twin-card-horizontal:hover::before {
-    opacity: 1;
-}
-
-.twin-card-horizontal:hover {
-    transform: translateY(-12px) scale(1.02);
-    box-shadow: 0 25px 50px rgba(0,0,0,0.15);
-}
-
-/* Card backgrounds - Simple gradient progression */
-.twin-card-horizontal.healthy {
-    background: linear-gradient(135deg, 
-        #f0fdf4 0%, 
-        #dcfce7 25%, 
-        #bbf7d0 50%, 
-        #a7f3d0 75%, 
-        #86efac 100%);
-    background-size: 200% 200%;
-    animation: gradientShift 6s ease infinite;
-}
-
-.twin-card-horizontal.healthy:hover {
-    background: linear-gradient(135deg, 
-        #dcfce7 0%, 
-        #bbf7d0 25%, 
-        #a7f3d0 50%, 
-        #86efac 75%, 
-        #4ade80 100%);
-    background-size: 200% 200%;
-    box-shadow: 0 25px 50px rgba(34, 197, 94, 0.3);
-}
-
-/* Anxiety Cards - Medium Blue (deeper than healthy) */
-.twin-card-horizontal.anxiety {
-    background: linear-gradient(135deg, 
-        #eff6ff 0%, 
-        #dbeafe 25%, 
-        #bfdbfe 50%, 
-        #93c5fd 75%, 
-        #7dd3fc 100%);
-    background-size: 200% 200%;
-    animation: gradientShift 6s ease infinite;
-    animation-delay: -2s;
-}
-
-.twin-card-horizontal.anxiety:hover {
-    background: linear-gradient(135deg, 
-        #dbeafe 0%, 
-        #bfdbfe 25%, 
-        #93c5fd 50%, 
-        #60a5fa 75%, 
-        #3b82f6 100%);
-    background-size: 200% 200%;
-    box-shadow: 0 25px 50px rgba(59, 130, 246, 0.3);
-}
-
-/* Depression Cards - Deep Blue (deepest) */
-.twin-card-horizontal.depression {
-    background: linear-gradient(135deg, 
-        #f1f5f9 0%, 
-        #e2e8f0 25%, 
-        #cbd5e1 50%, 
-        #94a3b8 75%, 
-        #64748b 100%);
-    background-size: 200% 200%;
-    animation: gradientShift 6s ease infinite;
-    animation-delay: -4s;
-}
-
-.twin-card-horizontal.depression:hover {
-    background: linear-gradient(135deg, 
-        #e2e8f0 0%, 
-        #cbd5e1 25%, 
-        #94a3b8 50%, 
-        #64748b 75%, 
-        #475569 100%);
-    background-size: 200% 200%;
-    box-shadow: 0 25px 50px rgba(71, 85, 105, 0.3);
-}
-
-/* Update button colors to match the new scheme */
-.anxiety .start-chat-btn {
-    background: linear-gradient(135deg, #3b82f6, #2563eb, #1d4ed8);
-    box-shadow: 0 8px 20px rgba(59, 130, 246, 0.3);
-}
-
-.anxiety .start-chat-btn:hover {
-    background: linear-gradient(135deg, #2563eb, #1d4ed8, #1e40af);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 30px rgba(59, 130, 246, 0.4);
-}
-
-.depression .start-chat-btn {
-    background: linear-gradient(135deg, #64748b, #475569, #334155);
-    box-shadow: 0 8px 20px rgba(100, 116, 139, 0.3);
-}
-
-.depression .start-chat-btn:hover {
-    background: linear-gradient(135deg, #475569, #334155, #1e293b);
-    transform: translateY(-3px);
-    box-shadow: 0 12px 30px rgba(100, 116, 139, 0.4);
-}
-
-/* Update hover glow effects for avatars */
-.twin-card-horizontal.anxiety:hover .twin-avatar {
-    box-shadow: 0 12px 35px rgba(59, 130, 246, 0.4);
-}
-
-.twin-card-horizontal.depression:hover .twin-avatar {
-    box-shadow: 0 12px 35px rgba(100, 116, 139, 0.4);
-}
-
-/* Remove old styles */
-.twin-card {
-    display: none;
-}
-
-/* Enhanced Responsive Design */
-@media (max-width: 1024px) {
-    .mental-health-categories {
-        grid-template-columns: 1fr;
-        gap: 40px;
-    }
-    
-    .twin-card-horizontal {
-        min-height: 200px;
-        padding: 25px;
-    }
-    
-    .twin-avatar {
-        width: 80px;
-        height: 80px;
-    }
-    
-    .twin-name {
-        font-size: 1.5rem;
-    }
-}
-
-@media (max-width: 768px) {
-    .twin-content {
-        flex-direction: column;
-        align-items: center;
-        text-align: center;
-        gap: 15px;
-    }
-    
-    .twin-avatar {
-        width: 100px;
-        height: 100px;
-    }
-    
-    .twin-info {
-        align-items: center;
-        text-align: center;
-    }
-    
-    .category-title {
-        font-size: 1.5rem;
-    }
-}
-
-@media (max-width: 480px) {
-    .twin-card-horizontal {
-        padding: 20px;
-        min-height: 180px;
-    }
-    
-    .twin-avatar {
-        width: 80px;
-        height: 80px;
-    }
-    
-    .twin-name {
-        font-size: 1.3rem;
-    }
-    
-    .twin-age {
-        font-size: 0.85rem;
-    }
-    
-    .twin-description {
-        font-size: 0.85rem;
-    }
-    
-    .start-chat-btn {
-        padding: 14px 18px;
-        font-size: 0.9rem;
-    }
-    
-    .category-title {
-        font-size: 1.3rem;
-    }
-}/* ===== GLOBAL STYLES ===== */
+/* ===== GLOBAL STYLES ===== */
 * {
     margin: 0;
     padding: 0;
@@ -1022,4 +741,126 @@ input:checked + .slider:before {
 
 .mb-20 {
     margin-bottom: 20px;
+}
+
+/* Additional CSS for chat controls and character info */
+
+.chat-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.control-button {
+    background: linear-gradient(135deg, #C6B093, #FCF3CB);
+    color: #5a6c7d;
+    border: 2px solid #C6B093;
+    padding: 10px 15px;
+    border-radius: 12px;
+    font-size: 0.9rem;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-align: center;
+}
+
+.control-button:hover {
+    background: linear-gradient(135deg, #b8a085, #f0e6b5);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.character-info {
+    background: rgba(127, 150, 178, 0.1);
+    border-radius: 12px;
+    padding: 15px;
+    border: 2px solid rgba(127, 150, 178, 0.3);
+}
+
+.character-stat {
+    margin-bottom: 8px;
+    font-size: 0.85rem;
+    color: #5a6c7d;
+}
+
+.character-stat strong {
+    color: #7F96B2;
+}
+
+/* System message styles */
+.message.system {
+    justify-content: center;
+}
+
+.message.system .message-avatar {
+    background: #f0f0f0;
+    color: #666;
+    border: 2px solid #ddd;
+}
+
+.message.system .message-content {
+    background: #f8f9fa;
+    color: #666;
+    font-style: italic;
+    text-align: center;
+    border: 1px solid #dee2e6;
+    max-width: 50%;
+}
+
+/* Enhanced scrollbar styles for better UX */
+.chat-messages::-webkit-scrollbar {
+    width: 8px;
+}
+
+.chat-messages::-webkit-scrollbar-track {
+    background: rgba(183, 220, 237, 0.1);
+    border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb {
+    background: rgba(127, 150, 178, 0.4);
+    border-radius: 4px;
+}
+
+.chat-messages::-webkit-scrollbar-thumb:hover {
+    background: rgba(127, 150, 178, 0.6);
+}
+
+/* Improved mobile responsiveness for controls */
+@media (max-width: 768px) {
+    .chat-controls {
+        flex-direction: row;
+        gap: 5px;
+    }
+    
+    .control-button {
+        font-size: 0.8rem;
+        padding: 8px 12px;
+        flex: 1;
+    }
+    
+    .character-info {
+        padding: 10px;
+    }
+    
+    .character-stat {
+        font-size: 0.8rem;
+        margin-bottom: 5px;
+    }
+}
+
+/* Loading state improvements */
+.send-button.loading {
+    background: linear-gradient(135deg, #ccc, #ddd);
+    cursor: not-allowed;
+}
+
+.send-button.loading::after {
+    content: '⏳';
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
