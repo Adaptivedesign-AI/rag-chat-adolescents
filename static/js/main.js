@@ -494,7 +494,22 @@ function addMessage(sender, content, timestamp = new Date()) {
     const messageDiv = document.createElement('div');
     messageDiv.className = `message ${sender}`;
     
-    // Determine avatar
+    // 处理情绪标签的特殊格式
+    let processedContent = content;
+    if (sender === 'twin' || sender === 'assistant') {
+        // 使用正则表达式找到并格式化情绪标签
+        // 匹配末尾的情绪标签，支持多种格式
+        const emotionTagRegex = /(.*?)[\s\n]*(Emotion(?:al)?\s*tag\s*:\s*[^\n]+)$/i;
+        const match = processedContent.match(emotionTagRegex);
+        
+        if (match) {
+            const mainContent = match[1].trim();
+            const emotionTag = match[2];
+            processedContent = `${mainContent}<div class="emotion-tag-separator">${emotionTag}</div>`;
+        }
+    }
+    
+    // 确定头像内容
     let avatarContent;
     if (sender === 'user') {
         avatarContent = '👤';
@@ -504,14 +519,17 @@ function addMessage(sender, content, timestamp = new Date()) {
         avatarContent = `<img src="${config.avatar}" alt="${config.name}" onerror="this.style.display='none'; this.parentNode.innerHTML='${config.name.charAt(0).toUpperCase()}';">`;
     }
     
-    // Special styling for system messages
+    // 特殊样式处理
     const messageClass = sender === 'system' ? 'system' : sender;
     const systemStyle = sender === 'system' ? 'style="background: #f0f0f0; color: #666; font-style: italic; text-align: center;"' : '';
+    
+    // 将换行符转换为HTML换行
+    const formattedContent = processedContent.replace(/\n/g, '<br>');
     
     messageDiv.innerHTML = `
         <div class="message-avatar">${avatarContent}</div>
         <div class="message-content" ${systemStyle}>
-            ${content}
+            ${formattedContent}
             <div class="message-time" style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">
                 ${formatTime(timestamp)}
             </div>
@@ -520,17 +538,17 @@ function addMessage(sender, content, timestamp = new Date()) {
     
     messagesContainer.appendChild(messageDiv);
     
-    // Add to chat history
+    // 添加到聊天历史
     chatHistory.push({
         sender: sender,
         content: content,
         timestamp: timestamp
     });
     
-    // Scroll to bottom
+    // 滚动到底部
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
     
-    // Add animation
+    // 添加动画
     setTimeout(() => {
         messageDiv.style.opacity = '1';
     }, 50);
