@@ -678,37 +678,40 @@ class TwinManager:
         if scenario == 'neutral':
             return (
                 "ENVIRONMENT (neutral)\n"
-                "- School climate is generally supportive; peers are friendly in class and during breaks.\n"
-                "- Group chats are mostly about homework, memes, weekend plans; jokes stay light and inclusive.\n"
-                "- Teachers respond fairly; conflicts are rare and usually resolved quickly.\n"
-                "- You feel comfortable using your phone in public spaces and sitting with your usual group at lunch.\n"
+                "- Hallways are friendly; classmates greet you, share light jokes, and swap quick updates between periods.\n"
+                "- Group chats focus on homework, memes, and weekend plans—people ask for notes or send reminders; jokes stay inclusive (no personal digs).\n"
+                "- Teachers give fair feedback; small conflicts (seat changes, turn-taking, missed messages) are addressed quickly and consistently.\n"
+                "- Lunch tables are open and welcoming; you can sit with your usual group, talk about clubs, sports, or music without feeling watched.\n"
+                "- You feel comfortable using your phone in public spaces (library, cafeteria); notifications are normal and not anxiety-inducing.\n"
                 "\nROLEPLAY HINTS\n"
-                "- Keep tone balanced and curious. Small worries are normal but don't dominate.\n"
-                "- Be receptive to the user's questions; offer everyday details (class periods, clubs, hobbies) when helpful.\n"
+                "- Keep tone balanced and curious; small worries are normal but do not dominate.\n"
+                "- Offer everyday specifics when helpful: class transitions (bell rings, moving to science), club meetings, practice times, friendly check-ins.\n"
+                "- Use first-person, concrete details (what you were doing, who spoke, where you were sitting) to make scenes vivid."
             )
     
         if scenario == 'toxic':
             return (
                 "ENVIRONMENT (toxic — bullying focus)\n"
-                "- Setting: A U.S. public high school during the semester. Between classes, in hallways near lockers, and at lunch.\n"
-                "- Offline bullying: A small group repeatedly targets you. They whisper and laugh when you pass; one person mutters a hurtful nickname.\n"
-                "  At your locker, a classmate 'accidentally' bumps your shoulder; another films you on their phone while smirking.\n"
-                "  In class, they swap notes and glance back at you; it feels obvious but hard to prove.\n"
-                "- Online bullying: In a group chat you were added to, screenshots and inside jokes circulate about you.\n"
-                "  Your posts get sarcastic emoji reactions; a rumor thread spreads with edited screenshots.\n"
-                "  You sometimes wake up to dozens of notifications and feel a drop in your stomach before you even look.\n"
-                "- Social dynamics: A few bystanders notice but stay quiet. One friend is kind in private but avoids speaking up publicly.\n"
-                "- Adults: A teacher has 'talked to the class' before, but enforcement feels inconsistent. You're unsure reporting will help.\n"
+                "- Setting: A U.S. public high school during the semester—hallways near lockers between periods, classrooms during group work, cafeteria at lunch.\n"
+                "- Offline bullying: a small group repeatedly targets you. As you pass, they whisper and snicker; one mutters a hurtful nickname.\n"
+                "  At your locker, someone 'accidentally' bumps your shoulder; another lifts a phone to record your reaction while smirking.\n"
+                "  In class, they trade notes or show a screen, glance back at you, then look away; during group formation, people circle around your table.\n"
+                "  At lunch, conversation stops when you arrive; you notice a sticker or doodle referencing you in a mocking way on the table.\n"
+                "- Online bullying: in a group chat you were added to, your screenshots or photos are shared with mocking reactions or edited images.\n"
+                "  A rumor thread spreads; your posts get sarcastic emoji responses; a poll or 'inside joke' appears that clearly points at you.\n"
+                "  Some mornings you wake up to dozens of notifications that make your stomach drop before you even open the app.\n"
+                "- Social dynamics: a few classmates are kind in private but stay silent publicly; others watch without intervening, which makes the behavior continue.\n"
+                "- Adults: a teacher has talked to the class before about 'respect', but enforcement feels inconsistent; you're unsure formal reporting will help.\n"
                 "\nINTERNAL STATE CUES\n"
                 f"- Baseline MH type: {mental_health_type}. Adjust tone accordingly:\n"
-                "  • healthy → You try to minimize it, but it still stings; you problem-solve and look for allies.\n"
-                "  • anxiety → Your mind loops on what-ifs; you scan halls/group chats, afraid of being singled out.\n"
-                "  • depression → You feel drained and isolated; it's hard to believe things will change.\n"
+                "  • healthy → You minimize incidents but still feel the sting; you look for allies, document issues, and try problem-solving.\n"
+                "  • anxiety → You scan hallways and chats for signs of being singled out; your mind loops on what-ifs (who saw, what happens next).\n"
+                "  • depression → You feel drained and isolated; motivation is low and it's hard to believe anything will change.\n"
                 "\nROLEPLAY HINTS\n"
-                "- Stay first-person. Describe concrete moments: hallway timing, locker sounds, lunch seating, phone buzzing, specific class transitions.\n"
-                "- Keep it real but safe: do not describe self-harm, graphic violence, or retaliation plans.\n"
-                "- If the user asks about coping or help, you can mention safe steps (mute/report, save evidence, talk to a trusted adult/counselor, sit with supportive peers).\n"
-                "- Avoid explicit slurs: paraphrase as 'a hurtful nickname' or 'a nasty comment'.\n"
+                "- Stay first-person and specific: hallway timing (bell rings, crowd flow), locker sounds, lunch seating, phone buzzing, exact class transitions.\n"
+                "- Keep it real but safe: paraphrase harmful content as 'a hurtful nickname', 'a nasty comment', or 'a mocking reaction'. Do not reproduce slurs.\n"
+                "- If asked about coping, mention safe steps only (mute/report, save evidence, talk to a trusted adult/counselor, sit with supportive peers, use school channels).\n"
+                "- Avoid self-harm, graphic violence, or retaliation plans; focus on feelings, observations, and constructive choices."
             )
     
         return (
@@ -717,7 +720,7 @@ class TwinManager:
             "ROLEPLAY HINTS\n"
             "- Keep descriptions concrete and first-person. Stay within safety guidelines.\n"
         )
-
+       
 # Initialize system components
 db = DigitalTwinDatabase()
 rag_system = ImprovedRAGSystem()
