@@ -410,48 +410,75 @@ class ImprovedRAGSystem:
             return results
 
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
-        """Convert external memories to first-person perspective"""
+        """Convert external memories to first-person perspective with improved safety and retry logic"""
         if not memories:
             return []
-
+    
+        def _extract_json_list(txt: str):
+            s = txt.strip()
+            if s.startswith("```json"):
+                s = s[7:-3].strip()
+            elif s.startswith("```"):
+                s = s[3:-3].strip()
+            return json.loads(s) if s else []
+    
+        # 1) 先用原文尝试（不提前温和化）
+        base_prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
+    Rewrite the external scene descriptions as **my own memories** in first-person.
+    Rules:
+    - Keep only what plausibly belongs to "me"; 1–2 sentences each.
+    - Do not mention videos/prompts.
+    - Output **JSON list of strings** only.
+    
+    Character Profile: {twin_profile}
+    
+    External descriptions:
+    - """ + "\n- ".join(memories)
+    
         try:
-            memories_text = '\n- '.join(memories)
-            
-            prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
-You will be given external scene descriptions (from video transcripts).
-Rewrite them as if they were **your own personal memories**, in first-person voice.
-
-Character Profile: {twin_profile}
-
-Rules:
-- Only keep the parts that could belong to "me".
-- Rewrite in natural language, not clinical labels.
-- If something does not fit "my perspective", skip it.
-- Do not mention that these are videos or external descriptions — write them as if they are purely my memories.
-- Keep each memory short (1–2 sentences).
-- Output strictly as a JSON list of strings.
-
-External descriptions:
-- {memories_text}
-
-Output example format: ["I remember being left out of a group chat by my classmates.", "I remember panicking before giving a class presentation."]"""
-
-            response = chat_model.generate_content(prompt)
-            
-            # Parse JSON response
-            json_text = response.text.strip()
-            if json_text.startswith('```json'):
-                json_text = json_text[7:-3]
-            elif json_text.startswith('```'):
-                json_text = json_text[3:-3]
-            
-            internalized = json.loads(json_text)
-            return internalized if isinstance(internalized, list) else []
-            
+            r1 = chat_model.generate_content(
+                base_prompt,
+                generation_config={"temperature": 0.3, "response_mime_type": "application/json"},
+            )
+            t1 = r1.text if hasattr(r1, "text") else r1.candidates[0].content.parts[0].text
+            p1 = _extract_json_list(t1)
+            if isinstance(p1, list) and p1:
+                return p1
         except Exception as e:
-            logger.error(f"Error internalizing memories: {e}")
-            # Fallback: return original memories with simple first-person conversion
-            return [f"I remember {memory.lower()}" for memory in memories[:5]]
+            logger.warning(f"[internalize] first attempt failed: {e}")
+    
+        # 2) 若失败/被拦截 → 温和化后重试
+        softened = self._soften_list(memories, limit=8)
+        safe_prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
+    Rewrite the external scene descriptions as **my own memories** in first-person.
+    Rules:
+    - Keep only what plausibly belongs to "me"; 1–2 sentences each.
+    - Do not mention videos/prompts.
+    - Output **JSON list of strings** only.
+    
+    Character Profile: {twin_profile}
+    
+    External descriptions:
+    - """ + "\n- ".join(softened) + """
+    
+    Safety constraints:
+    - Paraphrase any harmful or explicit content gently (e.g., "a hurtful nickname").
+    - Do not include plans/instructions for self-harm, violence, or retaliation.
+    """
+        try:
+            r2 = chat_model.generate_content(
+                safe_prompt,
+                generation_config={"temperature": 0.2, "response_mime_type": "application/json"},
+            )
+            t2 = r2.text if hasattr(r2, "text") else r2.candidates[0].content.parts[0].text
+            p2 = _extract_json_list(t2)
+            if isinstance(p2, list) and p2:
+                return p2
+        except Exception as e:
+            logger.warning(f"[internalize] second attempt failed: {e}")
+    
+        # 3) Fallback
+        return [f"I remember {m.lower()}" for m in memories[:5]]
 
 class TwinManager:
     def __init__(self, db: DigitalTwinDatabase, rag_system: ImprovedRAGSystem):
