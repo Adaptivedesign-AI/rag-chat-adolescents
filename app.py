@@ -249,8 +249,8 @@ class ImprovedRAGSystem:
                 elif isinstance(obj, list):
                     for rec in obj:
                         if isinstance(rec, dict):
-                            cid = rec.get("id") or rec.get("chunk_id") or rec.get("uid")
-                            emb = rec.get("embedding") or rec.get("values") or rec.get("vector")
+                            cid = next((rec[k] for k in ("id", "chunk_id", "uid") if k in rec and rec[k] is not None), None)
+                            emb = next((rec[k] for k in ("embedding", "values", "vector") if k in rec), None)
                             items.append((cid, emb))
                         elif isinstance(rec, (list, tuple)) and len(rec) == 2:
                             items.append((rec[0], rec[1]))
