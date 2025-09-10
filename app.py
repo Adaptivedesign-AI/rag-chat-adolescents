@@ -10,7 +10,9 @@ import logging
 from pathlib import Path
 import csv
 import pickle
+import requests
 from sklearn.metrics.pairwise import cosine_similarity
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -26,8 +28,8 @@ if not GEMINI_API_KEY:
 
 genai.configure(api_key=GEMINI_API_KEY)
 
-# Initialize models
-chat_model = genai.GenerativeModel('gemini-2.0-flash-exp')
+# Use more stable model
+chat_model = genai.GenerativeModel('gemini-2.0-flash')
 
 class DigitalTwinDatabase:
     def __init__(self, db_path='digital_twins.db'):
@@ -147,121 +149,271 @@ class DigitalTwinDatabase:
         conn.commit()
         conn.close()
 
-class NumPyRAGSystem:
-    def __init__(self):
-        self.scenarios_path = Path('scenarios')
-        self.embeddings_cache = {}
-    
-    def load_embeddings_data(self, bucket_name: str) -> Dict:
-        """Load embeddings data for a specific scenario bucket"""
+class ImprovedRAGSystem:
+    """
+    Improved RAG system that properly handles embeddings alignment and directory naming
+    """
+    def __init__(self, scenarios_root: str = "scenarios"):
+        self.scenarios_path = Path(scenarios_root)
+        self.embeddings_cache: Dict[str, Dict[str, Any]] = {}
+        
+        # Directory alias mapping: external name -> actual directory name
+        self.mh_dir_alias = {
+            "anxiety": "anxious", 
+            "anxious": "anxious",
+            "healthy": "healthy",
+            "depression": "depression"
+        }
+        
+        # REST embedding configuration
+        self._embed_model = "text-embedding-004"
+        self._api_key = os.environ.get("GEMINI_API_KEY")
+        if not self._api_key:
+            raise RuntimeError("GEMINI_API_KEY not set")
+        
+        # Clear potential proxy settings that could interfere
+        for k in ["HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "http_proxy", "https_proxy", "all_proxy"]:
+            os.environ.pop(k, None)
+        
+        self._embed_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._embed_model}:embedContent?key={self._api_key}"
+        self._embed_timeout = 45
+
+    def _resolve_bucket_dir(self, scenario: str, mh: str) -> Path:
+        """
+        Resolve bucket directory with alias support
+        Try both original name and alias (e.g., anxiety -> anxious)
+        """
+        bn = f"{scenario}_{mh}"
+        d1 = self.scenarios_path / bn
+        if d1.exists():
+            return d1
+        
+        # Try alias
+        alt_mh = self.mh_dir_alias.get(mh, mh)
+        d2 = self.scenarios_path / f"{scenario}_{alt_mh}"
+        return d2
+
+    def _read_chunks(self, chunks_path: Path) -> List[Dict[str, Any]]:
+        """Read chunks from JSONL file"""
+        rows = []
+        if not chunks_path.exists():
+            return rows
+            
+        with open(chunks_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except Exception as e:
+                    logger.warning(f"Failed to parse line in {chunks_path}: {e}")
+                    continue
+        return rows
+
+    def _load_bucket(self, scenario: str, mh: str) -> Dict[str, Any]:
+        """
+        Load and align a bucket, returning {'ids', 'texts', 'embeddings'}
+        Properly aligns text chunks with their corresponding embeddings by ID
+        """
+        bucket_dir = self._resolve_bucket_dir(scenario, mh)
+        chunks_path = bucket_dir / "chunks.jsonl"
+        pkl_path = bucket_dir / "embeddings.pkl"
+
+        if not chunks_path.exists():
+            logger.warning(f"[RAG] No chunks.jsonl in {bucket_dir}")
+            return {"ids": [], "texts": [], "embeddings": None}
+
+        chunks = self._read_chunks(chunks_path)
+        
+        # Build id -> text mapping
+        id2text = {}
+        for ch in chunks:
+            cid = ch.get("id")
+            text = ch.get("text") or ch.get("summary") or ch.get("title") or ""
+            if cid and text:
+                id2text[cid] = text
+
+        ids_aligned, texts_aligned, vecs_aligned = [], [], []
+
+        if pkl_path.exists():
+            try:
+                with open(pkl_path, "rb") as f:
+                    records = pickle.load(f)  # Expected: list[dict]
+                
+                # Align embeddings with texts by ID
+                for rec in records:
+                    if not isinstance(rec, dict):
+                        continue
+                    
+                    cid = rec.get("id")
+                    emb = rec.get("embedding")
+                    
+                    if cid in id2text and isinstance(emb, list) and len(emb) > 0:
+                        ids_aligned.append(cid)
+                        texts_aligned.append(id2text[cid])
+                        vecs_aligned.append(emb)
+                
+                if vecs_aligned:
+                    embeddings = np.array(vecs_aligned, dtype=np.float32)
+                    logger.info(f"[RAG] Loaded {len(texts_aligned)} aligned text-embedding pairs from {bucket_dir}")
+                    return {"ids": ids_aligned, "texts": texts_aligned, "embeddings": embeddings}
+                else:
+                    logger.warning(f"[RAG] No usable embeddings found in {pkl_path}")
+                    
+            except Exception as e:
+                logger.error(f"[RAG] Failed to read {pkl_path}: {e}")
+
+        # Fallback: return texts without pre-computed embeddings
+        texts = list(id2text.values())
+        ids = list(id2text.keys())
+        logger.info(f"[RAG] Loaded {len(texts)} texts without pre-computed embeddings from {bucket_dir}")
+        return {"ids": ids, "texts": texts, "embeddings": None}
+
+    def load_embeddings_data(self, bucket_name: str) -> Dict[str, Any]:
+        """
+        Load embeddings data for a bucket name (backward compatibility)
+        """
         if bucket_name in self.embeddings_cache:
             return self.embeddings_cache[bucket_name]
-        
-        # Try to load pre-computed embeddings (numpy format)
-        embeddings_path = self.scenarios_path / bucket_name / 'embeddings.pkl'
-        chunks_path = self.scenarios_path / bucket_name / 'chunks.jsonl'
-        
-        data = {'texts': [], 'embeddings': None}
+
+        if "_" in bucket_name:
+            scenario, mh = bucket_name.split("_", 1)
+        else:
+            # Fallback: assume neutral scenario
+            scenario, mh = "neutral", bucket_name
+
+        data = self._load_bucket(scenario, mh)
+        self.embeddings_cache[bucket_name] = data
+        return data
+
+    @retry(
+        wait=wait_exponential(multiplier=1, min=1, max=20),
+        stop=stop_after_attempt(6),
+        retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError))
+    )
+    def _embed_one(self, text: str) -> np.ndarray:
+        """Generate embedding using REST API directly"""
+        payload = {"content": {"parts": [{"text": text}]}}
         
         try:
-            # Load chunks
-            if chunks_path.exists():
-                with open(chunks_path, 'r', encoding='utf-8') as f:
-                    for line in f:
-                        try:
-                            chunk = json.loads(line.strip())
-                            if isinstance(chunk, dict):
-                                text = chunk.get('text', chunk.get('content', str(chunk)))
-                            else:
-                                text = str(chunk)
-                            data['texts'].append(text)
-                        except:
-                            continue
-            
-            # Load embeddings if available
-            if embeddings_path.exists():
-                with open(embeddings_path, 'rb') as f:
-                    data['embeddings'] = pickle.load(f)
-                logger.info(f"Loaded {len(data['texts'])} texts and embeddings for {bucket_name}")
-            else:
-                logger.warning(f"No pre-computed embeddings found for {bucket_name}, will compute on-demand")
-            
-            self.embeddings_cache[bucket_name] = data
-            return data
-        
-        except Exception as e:
-            logger.error(f"Error loading data for {bucket_name}: {e}")
-            return {'texts': [], 'embeddings': None}
-    
-    def get_embedding(self, text: str) -> np.ndarray:
-        """Generate embedding for text using Gemini"""
-        try:
-            result = genai.embed_content(
-                model="models/text-embedding-004",
-                content=text,
-                task_type="retrieval_query"
+            response = requests.post(
+                self._embed_url, 
+                json=payload, 
+                timeout=self._embed_timeout
             )
-            return np.array(result['embedding'])
-        except Exception as e:
-            logger.error(f"Error generating embedding: {e}")
-            return np.random.random(768)  # Fallback random embedding
-    
-    def search_memories(self, query: str, twin_id: str, scenario: str, mental_health_type: str, k: int = 10) -> List[str]:
-        """Search for relevant memories using cosine similarity"""
-        bucket_name = f"{scenario}_{mental_health_type}"
-        data = self.load_embeddings_data(bucket_name)
-        
-        if not data['texts']:
-            logger.warning(f"No memories available for bucket: {bucket_name}")
-            return []
-        
-        try:
-            # Generate query embedding
-            query_embedding = self.get_embedding(query)
             
-            if data['embeddings'] is not None:
-                # Use pre-computed embeddings
-                embeddings_matrix = data['embeddings']
-                
-                # Calculate cosine similarities
-                query_embedding = query_embedding.reshape(1, -1)
-                similarities = cosine_similarity(query_embedding, embeddings_matrix)[0]
-                
-                # Get top k indices
-                top_indices = np.argsort(similarities)[::-1][:k]
-                
-                # Return top chunks
-                return [data['texts'][idx] for idx in top_indices if idx < len(data['texts'])]
-            else:
-                # Fallback: generate embeddings on-demand (slower but works)
-                logger.info(f"Computing embeddings on-demand for {len(data['texts'])} texts")
-                
-                similarities = []
-                for i, text in enumerate(data['texts']):
-                    text_embedding = self.get_embedding(text)
-                    similarity = np.dot(query_embedding, text_embedding) / (
-                        np.linalg.norm(query_embedding) * np.linalg.norm(text_embedding)
-                    )
-                    similarities.append((similarity, i))
-                
-                # Sort by similarity and get top k
-                similarities.sort(reverse=True)
-                top_indices = [idx for _, idx in similarities[:k]]
-                
-                return [data['texts'][idx] for idx in top_indices]
-        
+            if response.status_code != 200:
+                try:
+                    err = response.json()
+                except:
+                    err = response.text
+                raise RuntimeError(f"Embed HTTP {response.status_code}: {err}")
+            
+            data = response.json()
+            embedding = data.get("embedding", {})
+            vec = embedding.get("values")  # Note: might be "values" not "value"
+            
+            if isinstance(vec, list):
+                return np.array(vec, dtype=np.float32)
+            
+            # Try alternative field names
+            for field in ["value", "embedding"]:
+                alt_vec = embedding.get(field)
+                if isinstance(alt_vec, list):
+                    return np.array(alt_vec, dtype=np.float32)
+            
+            raise RuntimeError(f"Unexpected embed response structure: {str(data)[:500]}")
+            
         except Exception as e:
-            logger.error(f"Error searching memories: {e}")
-            # Fallback to random selection
-            import random
-            n_chunks = min(k, len(data['texts']))
-            return random.sample(data['texts'], n_chunks) if data['texts'] else []
-    
+            logger.error(f"[RAG] REST embedding failed: {e}")
+            raise
+
+    def get_embedding(self, text: str) -> np.ndarray:
+        """Get embedding with fallback to SDK if REST fails"""
+        try:
+            return self._embed_one(text)
+        except Exception as e:
+            logger.warning(f"[RAG] REST embedding failed, trying SDK fallback: {e}")
+            try:
+                # Fallback to SDK
+                result = genai.embed_content(
+                    model="models/text-embedding-004",
+                    content=text,
+                    task_type="retrieval_query"
+                )
+                return np.array(result['embedding'], dtype=np.float32)
+            except Exception as e2:
+                logger.error(f"[RAG] Both REST and SDK embedding failed, using random fallback: {e2}")
+                return np.random.random(768).astype(np.float32)
+
+    def search_memories(self, query: str, twin_id: str, scenario: str, mental_health_type: str, k: int = 10) -> List[str]:
+        """
+        Search for relevant memories with proper text-embedding alignment
+        """
+        # Try both original and alias directory names
+        bucket_candidates = [
+            f"{scenario}_{mental_health_type}",
+            f"{scenario}_{self.mh_dir_alias.get(mental_health_type, mental_health_type)}"
+        ]
+        
+        data = None
+        for bucket_name in bucket_candidates:
+            data = self.load_embeddings_data(bucket_name)
+            if data["texts"]:
+                logger.info(f"[RAG] Using bucket: {bucket_name}")
+                break
+
+        if not data or not data["texts"]:
+            logger.warning(f"[RAG] No memories found for buckets: {bucket_candidates}")
+            return []
+
+        texts = data["texts"]
+        embeddings_matrix = data["embeddings"]
+
+        # Generate query embedding
+        try:
+            query_embedding = self.get_embedding(query).reshape(1, -1)
+        except Exception as e:
+            logger.error(f"[RAG] Failed to generate query embedding: {e}")
+            return []
+
+        if embeddings_matrix is not None and len(texts) == embeddings_matrix.shape[0]:
+            # Use pre-computed embeddings
+            similarities = cosine_similarity(query_embedding, embeddings_matrix)[0]
+            top_indices = np.argsort(similarities)[::-1][:k]
+            results = [texts[i] for i in top_indices if i < len(texts)]
+            logger.info(f"[RAG] Found {len(results)} memories using pre-computed embeddings")
+            return results
+        else:
+            # On-demand embedding computation (slower)
+            logger.info(f"[RAG] Computing embeddings on-demand for {len(texts)} texts (this may be slow)")
+            
+            similarities = []
+            query_vec = query_embedding.reshape(-1)
+            query_norm = np.linalg.norm(query_vec) + 1e-8
+            
+            for i, text in enumerate(texts):
+                try:
+                    text_vec = self.get_embedding(text).reshape(-1)
+                    text_norm = np.linalg.norm(text_vec) + 1e-8
+                    similarity = float(np.dot(query_vec, text_vec) / (query_norm * text_norm))
+                    similarities.append((similarity, i))
+                except Exception as e:
+                    logger.warning(f"[RAG] Failed to compute similarity for text {i}: {e}")
+                    similarities.append((0.0, i))
+            
+            # Sort by similarity and return top k
+            similarities.sort(reverse=True)
+            results = [texts[i] for _, i in similarities[:k]]
+            logger.info(f"[RAG] Found {len(results)} memories using on-demand embeddings")
+            return results
+
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
         """Convert external memories to first-person perspective"""
         if not memories:
             return []
-        
+
         try:
             memories_text = '\n- '.join(memories)
             
@@ -302,7 +454,7 @@ Output example format: ["I remember being left out of a group chat by my classma
             return [f"I remember {memory.lower()}" for memory in memories[:5]]
 
 class TwinManager:
-    def __init__(self, db: DigitalTwinDatabase, rag_system: NumPyRAGSystem):
+    def __init__(self, db: DigitalTwinDatabase, rag_system: ImprovedRAGSystem):
         self.db = db
         self.rag_system = rag_system
         self.twin_profiles = self.load_twin_profiles()
@@ -317,6 +469,7 @@ class TwinManager:
                 for row in reader:
                     name = row['name'].lower()
                     profiles[name] = row['prompt']
+            logger.info(f"Loaded {len(profiles)} twin profiles")
         except Exception as e:
             logger.error(f"Error loading twin profiles: {e}")
         
@@ -326,7 +479,9 @@ class TwinManager:
         """Load shared roleplay prompt"""
         try:
             with open('shared_prompt.txt', 'r', encoding='utf-8') as f:
-                return f.read().strip()
+                content = f.read().strip()
+                logger.info("Loaded shared prompt")
+                return content
         except Exception as e:
             logger.error(f"Error loading shared prompt: {e}")
             return ""
@@ -374,16 +529,20 @@ class TwinManager:
         
         # Add RAG memories if enabled
         if rag_enabled:
-            memories = self.rag_system.search_memories(
-                user_message, twin_id, scenario, twin_config['mental_health_type']
-            )
-            if memories:
-                internalized_memories = self.rag_system.internalize_memories(
-                    memories, twin_config, twin_profile
+            try:
+                memories = self.rag_system.search_memories(
+                    user_message, twin_id, scenario, twin_config['mental_health_type']
                 )
-                if internalized_memories:
-                    memory_text = '\n- '.join(internalized_memories)
-                    prompt_parts.append(f"\nI recall some experiences from my past:\n- {memory_text}\nThese memories still shape how I feel today.")
+                if memories:
+                    internalized_memories = self.rag_system.internalize_memories(
+                        memories, twin_config, twin_profile
+                    )
+                    if internalized_memories:
+                        memory_text = '\n- '.join(internalized_memories)
+                        prompt_parts.append(f"\nI recall some experiences from my past:\n- {memory_text}\nThese memories still shape how I feel today.")
+                        logger.info(f"[RAG] Added {len(internalized_memories)} internalized memories for {twin_id}")
+            except Exception as e:
+                logger.error(f"[RAG] Error retrieving memories for {twin_id}: {e}")
         
         # Add recent chat history
         if chat_history:
@@ -417,11 +576,10 @@ class TwinManager:
 
 # Initialize system components
 db = DigitalTwinDatabase()
-rag_system = NumPyRAGSystem()
+rag_system = ImprovedRAGSystem()
 twin_manager = TwinManager(db, rag_system)
 
-# [Rest of the Flask routes remain the same as before...]
-
+# Flask routes
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -452,8 +610,13 @@ def send_message():
         session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
         session['session_id'] = session_id
         
+        # Save user message
         db.save_message(twin_id, session_id, 'user', message, scenario, rag_enabled)
+        
+        # Generate response
         response = twin_manager.generate_response(twin_id, message, session_id, scenario, rag_enabled)
+        
+        # Save assistant response
         db.save_message(twin_id, session_id, 'assistant', response, scenario, rag_enabled)
         
         return jsonify({'response': response})
@@ -503,6 +666,43 @@ def toggle_rag():
         logger.error(f"Error in toggle_rag: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+@app.route('/api/debug_rag', methods=['POST'])
+def debug_rag():
+    """Debug endpoint to see RAG retrieval results"""
+    try:
+        data = request.get_json()
+        query = data.get('query', '')
+        twin_id = data.get('twin_id')
+        scenario = data.get('scenario', 'neutral')
+        
+        if not query or not twin_id:
+            return jsonify({'error': 'Query and twin_id required'}), 400
+        
+        twin_config = twin_manager.get_twin_config(twin_id)
+        if not twin_config:
+            return jsonify({'error': 'Invalid twin_id'}), 400
+        
+        # Get raw memories
+        memories = rag_system.search_memories(
+            query, twin_id, scenario, twin_config['mental_health_type'], k=5
+        )
+        
+        # Get internalized memories
+        twin_profile = twin_manager.twin_profiles.get(twin_id, "")
+        internalized = rag_system.internalize_memories(memories, twin_config, twin_profile)
+        
+        return jsonify({
+            'query': query,
+            'raw_memories': memories,
+            'internalized_memories': internalized,
+            'bucket': f"{scenario}_{twin_config['mental_health_type']}"
+        })
+    
+    except Exception as e:
+        logger.error(f"Error in debug_rag: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=True)
+    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
