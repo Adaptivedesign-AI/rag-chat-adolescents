@@ -997,3 +997,18 @@ body{
 .message-content p{ margin: 0 0 8px; }
 .message-content a{ color: #1E5175; text-decoration: underline; }
 .message-content code{ background: #f6f8fa; padding: .1em .3em; border-radius: 4px; }
+
+.stage-emoji {
+  font-size: 1.2em;
+  margin: 0 3px;
+}
+.stage-dir {
+  font-style: italic;
+  opacity: 0.7;
+}
+.emotion-tag {
+  display: block;
+  font-weight: bold;
+  color: #7F96B2;
+  margin-top: 10px;
+}
