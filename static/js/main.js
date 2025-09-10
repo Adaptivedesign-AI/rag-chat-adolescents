@@ -195,20 +195,20 @@ function formatTime(date = new Date()) {
 function initMainPage() {
     console.log('Initializing main page...');
     
-    // Add page load animation
-    const cards = document.querySelectorAll('.twin-card');
+    // Add page load animation for horizontal cards
+    const cards = document.querySelectorAll('.twin-card-horizontal');
     cards.forEach((card, index) => {
         card.style.opacity = '0';
-        card.style.transform = 'translateY(50px)';
+        card.style.transform = 'translateY(30px)';
         
         setTimeout(() => {
             card.style.transition = 'all 0.6s ease';
             card.style.opacity = '1';
             card.style.transform = 'translateY(0)';
-        }, index * 100);
+        }, index * 150);
     });
     
-    // Add click handlers
+    // Add click handlers to horizontal cards
     cards.forEach(card => {
         card.addEventListener('click', function() {
             const twinId = this.getAttribute('data-twin');
@@ -224,8 +224,8 @@ function selectTwin(twinId) {
     
     const card = document.querySelector(`[data-twin="${twinId}"]`);
     if (card) {
-        // Add selection animation
-        card.style.transform = 'scale(0.95)';
+        // Add selection animation for horizontal cards
+        card.style.transform = 'scale(0.98)';
         card.style.transition = 'transform 0.1s ease';
         
         setTimeout(() => {
@@ -707,6 +707,46 @@ document.addEventListener('DOMContentLoaded', function() {
     
     console.log('Digital Twin Platform loaded successfully!');
 });
+
+// Add the missing clearChat and exportChatHistory functions
+function clearChat() {
+    if (confirm('Are you sure you want to clear the chat history?')) {
+        const messagesContainer = document.getElementById('chatMessages');
+        if (messagesContainer) {
+            messagesContainer.innerHTML = '';
+        }
+        chatHistory = [];
+        addInitialMessage();
+        showNotification('Chat cleared');
+    }
+}
+
+function exportChatHistory() {
+    const config = twinConfigs[currentTwin];
+    const timestamp = new Date().toISOString().split('T')[0];
+    const filename = `chat_${config.name}_${timestamp}.json`;
+    
+    const data = {
+        twin: config,
+        scenario: currentScenario,
+        rag_enabled: ragEnabled,
+        messages: chatHistory,
+        exported_at: new Date().toISOString()
+    };
+    
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+    
+    showNotification('Chat history exported');
+}
 
 // ===== EXPORT FOR GLOBAL ACCESS =====
 window.DigitalTwinApp = {
