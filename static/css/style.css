@@ -84,9 +84,9 @@ body {
 }
 
 .header-image {
-    width: 100%;
+    width: 70%; /* Reduced from 100% to make it 30% smaller */
     height: auto;
-    max-height: 400px;
+    max-height: 280px; /* Reduced from 400px to maintain proportion */
     object-fit: contain;
 }
 
@@ -95,7 +95,7 @@ body {
     margin-bottom: 35px;
     max-width: 1200px;
     color: #1E5175;
-    font-size: 0.95rem;
+    font-size: 1.1rem; /* Increased from 0.95rem to make it larger */
     line-height: 1.6;
     padding: 0 20px;
     margin-top: -5px;
@@ -420,10 +420,10 @@ body {
     background: rgba(252, 243, 203, 0.5);
     border: 2px solid #C6B093;
     border-radius: 12px;
-    padding: 15px;
+    padding: 20px; /* Increased padding for better spacing */
     cursor: pointer;
     transition: all 0.3s ease;
-    text-align: center;
+    text-align: left; /* Changed from center to left for better readability */
     position: relative;
 }
 
@@ -441,12 +441,30 @@ body {
 .scenario-title {
     font-weight: bold;
     font-size: 1rem;
-    margin-bottom: 5px;
+    margin-bottom: 10px; /* Increased margin for better spacing */
+    text-align: center; /* Keep titles centered */
 }
 
 .scenario-description {
     font-size: 0.85rem;
     opacity: 0.8;
+}
+
+/* NEW: Detailed scenario descriptions for chat page */
+.scenario-description-detailed {
+    font-size: 0.9rem;
+    line-height: 1.4;
+    opacity: 0.9;
+}
+
+.scenario-description-detailed strong {
+    font-weight: bold;
+    color: inherit;
+}
+
+/* Make sure active state text is readable */
+.scenario-option.active .scenario-description-detailed strong {
+    color: rgba(255, 255, 255, 0.95);
 }
 
 .rag-toggle-container {
@@ -745,11 +763,25 @@ input:checked + .slider:before {
     .category-title {
         font-size: 1.3rem;
     }
+    
+    .header-image {
+        width: 75%; /* Slightly larger on tablets */
+        max-height: 300px;
+    }
 }
 
 @media (max-width: 768px) {
     .header h1 {
         font-size: 2rem;
+    }
+    
+    .header-image {
+        width: 80%; /* Larger on mobile for better visibility */
+        max-height: 220px;
+    }
+    
+    .disclaimer-text {
+        font-size: 1rem; /* Slightly smaller on mobile but still larger than original */
     }
     
     .category-grid {
@@ -796,7 +828,12 @@ input:checked + .slider:before {
     }
     
     .scenario-option {
-        min-width: 150px;
+        min-width: 200px; /* Increased to accommodate detailed descriptions */
+        padding: 15px;
+    }
+    
+    .scenario-description-detailed {
+        font-size: 0.8rem;
     }
 }
 
@@ -825,6 +862,24 @@ input:checked + .slider:before {
     
     .category-title {
         font-size: 1.1rem;
+    }
+    
+    .header-image {
+        width: 85%;
+        max-height: 200px;
+    }
+    
+    .disclaimer-text {
+        font-size: 0.95rem;
+    }
+    
+    .scenario-option {
+        min-width: 180px;
+        padding: 12px;
+    }
+    
+    .scenario-description-detailed {
+        font-size: 0.75rem;
     }
 }
 
