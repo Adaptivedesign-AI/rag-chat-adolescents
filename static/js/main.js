@@ -195,20 +195,20 @@ function formatTime(date = new Date()) {
 function initMainPage() {
     console.log('Initializing main page...');
     
-    // Add page load animation for horizontal cards
-    const cards = document.querySelectorAll('.twin-card-horizontal');
+    // Add page load animation
+    const cards = document.querySelectorAll('.twin-card');
     cards.forEach((card, index) => {
         card.style.opacity = '0';
-        card.style.transform = 'translateY(30px)';
+        card.style.transform = 'translateY(50px)';
         
         setTimeout(() => {
             card.style.transition = 'all 0.6s ease';
             card.style.opacity = '1';
             card.style.transform = 'translateY(0)';
-        }, index * 150);
+        }, index * 100);
     });
     
-    // Add click handlers to horizontal cards
+    // Add click handlers
     cards.forEach(card => {
         card.addEventListener('click', function() {
             const twinId = this.getAttribute('data-twin');
@@ -224,8 +224,8 @@ function selectTwin(twinId) {
     
     const card = document.querySelector(`[data-twin="${twinId}"]`);
     if (card) {
-        // Add selection animation for horizontal cards
-        card.style.transform = 'scale(0.98)';
+        // Add selection animation
+        card.style.transform = 'scale(0.95)';
         card.style.transition = 'transform 0.1s ease';
         
         setTimeout(() => {
