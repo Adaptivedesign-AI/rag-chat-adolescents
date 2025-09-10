@@ -636,7 +636,9 @@ class TwinManager:
         
         try:
             response = chat_model.generate_content(full_prompt)
-            return response.text.strip()
+            txt = response.text.strip()
+            txt = self._enforce_emotion_breaks(txt)  # 强制格式化emotion tag
+            return txt
         except Exception as e:
             logger.error(f"Error generating response: {e}")
             return "Sorry, I'm having trouble thinking right now. Can you try again?"
