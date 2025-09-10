@@ -526,6 +526,20 @@ class TwinManager:
         self.twin_profiles = self.load_twin_profiles()
         self.shared_prompt = self.load_shared_prompt()
 
+    def _postprocess_client_text(self, text: str) -> str:
+        """
+        面向前端的最终修饰：
+        - 去掉常见 Markdown 逃逸（\[, \], \*, \_, \~, \` -> [, ], *, _, ~, `）
+        - 可按需再扩展
+        """
+        if not text:
+            return text
+        # 1) 取消常见的反斜杠转义
+        text = re.sub(r"\\([\[\]\*\_\~`])", r"\1", text)
+        # 2) 可选：把 Windows 风格回车统一为 \n（一般没必要）
+        text = text.replace("\r\n", "\n")
+        return text
+
     def _enforce_emotion_breaks(self, text: str) -> str:
         """
         在最后一次出现的 'Emotion tag: ...' 或 'Emotional tag: ...' 之前插入**两个换行**。
@@ -534,8 +548,8 @@ class TwinManager:
         if not text:
             return text
     
-        # 兼容 Emotion tag / Emotional tag（大小写不敏感）
-        pattern = re.compile(r"(?:^|\n)[ \t]*(Emotional?\s*tag\s*:\s*[^\n]+)\s*$", re.IGNORECASE)
+        # 兼容 Emotion tag / Emotional tag（大小写不敏感），把 "al" 作为整体可选
+        pattern = re.compile(r"(Emotion(?:al)?\s*tag\s*:\s*[^\n]+)", re.IGNORECASE)
     
         last = None
         for m in pattern.finditer(text):
@@ -546,7 +560,7 @@ class TwinManager:
         start = last.start(1)
         before, tagline = text[:start], text[start:]
     
-        # 去掉标签前多余的结尾换行，然后补上恰好两个
+        # 去掉标签前多余结尾换行后，补恰好两个
         before = before.rstrip("\n")
         return before + "\n\n" + tagline
     
@@ -652,7 +666,8 @@ class TwinManager:
         try:
             response = chat_model.generate_content(full_prompt)
             txt = response.text.strip()
-            txt = self._enforce_emotion_breaks(txt)  # ← 新增这一行
+            txt = self._enforce_emotion_breaks(txt)
+            txt = self._postprocess_client_text(txt)  # ← 新增：去掉 \[ ] 等转义，确保前端好看
             return txt
         except Exception as e:
             logger.error(f"Error generating response: {e}")
