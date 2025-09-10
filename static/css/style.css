@@ -15,7 +15,7 @@
 
 .category-title {
     text-align: center;
-    font-size: 1.5rem;
+    font-size: 1.8rem;      /* 原 1.5rem，改为与 .age-group-title 一致 */
     font-weight: bold;
     margin-bottom: 10px;
     padding: 10px 0;
@@ -84,9 +84,9 @@ body {
 }
 
 .header-image {
-    width: 70%; /* Reduced from 100% to make it 30% smaller */
+    width: 77%;           /* 原来是 70% */
     height: auto;
-    max-height: 280px; /* Reduced from 400px to maintain proportion */
+    max-height: 308px;    /* 原来是 280px */
     object-fit: contain;
 }
 
@@ -117,7 +117,7 @@ body {
 
 .age-group-title {
     text-align: center;
-    font-size: 2rem;
+    font-size: 1.8rem;      /* 原 2rem，改为与 .category-title 一致 */
     color: #7F96B2;
     margin-bottom: 30px;
     padding: 15px 0;
@@ -761,7 +761,7 @@ input:checked + .slider:before {
     }
     
     .category-title {
-        font-size: 1.3rem;
+        font-size: 1.5rem;
     }
     
     .header-image {
@@ -857,11 +857,11 @@ input:checked + .slider:before {
     }
     
     .age-group-title {
-        font-size: 1.3rem;
+        font-size: 1.2rem;
     }
     
     .category-title {
-        font-size: 1.1rem;
+        font-size: 1.2rem;
     }
     
     .header-image {
