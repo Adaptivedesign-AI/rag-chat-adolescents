@@ -567,12 +567,49 @@ class TwinManager:
             return "Sorry, I'm having trouble thinking right now. Can you try again?"
     
     def get_scenario_context(self, scenario: str, mental_health_type: str) -> str:
-        """Get scenario-specific context"""
+        """Get scenario-specific context with fixed quote escaping"""
         if scenario == 'neutral':
-            return "You are in a balanced, supportive social environment with typical peer interactions."
-        elif scenario == 'toxic':
-            return "You are in a challenging, stressful social environment with negative peer pressure and conflict."
-        return ""
+            return (
+                "ENVIRONMENT (neutral)\n"
+                "- School climate is generally supportive; peers are friendly in class and during breaks.\n"
+                "- Group chats are mostly about homework, memes, weekend plans; jokes stay light and inclusive.\n"
+                "- Teachers respond fairly; conflicts are rare and usually resolved quickly.\n"
+                "- You feel comfortable using your phone in public spaces and sitting with your usual group at lunch.\n"
+                "\nROLEPLAY HINTS\n"
+                "- Keep tone balanced and curious. Small worries are normal but don't dominate.\n"
+                "- Be receptive to the user's questions; offer everyday details (class periods, clubs, hobbies) when helpful.\n"
+            )
+    
+        if scenario == 'toxic':
+            return (
+                "ENVIRONMENT (toxic — bullying focus)\n"
+                "- Setting: A U.S. public high school during the semester. Between classes, in hallways near lockers, and at lunch.\n"
+                "- Offline bullying: A small group repeatedly targets you. They whisper and laugh when you pass; one person mutters a hurtful nickname.\n"
+                "  At your locker, a classmate 'accidentally' bumps your shoulder; another films you on their phone while smirking.\n"
+                "  In class, they swap notes and glance back at you; it feels obvious but hard to prove.\n"
+                "- Online bullying: In a group chat you were added to, screenshots and inside jokes circulate about you.\n"
+                "  Your posts get sarcastic emoji reactions; a rumor thread spreads with edited screenshots.\n"
+                "  You sometimes wake up to dozens of notifications and feel a drop in your stomach before you even look.\n"
+                "- Social dynamics: A few bystanders notice but stay quiet. One friend is kind in private but avoids speaking up publicly.\n"
+                "- Adults: A teacher has 'talked to the class' before, but enforcement feels inconsistent. You're unsure reporting will help.\n"
+                "\nINTERNAL STATE CUES\n"
+                f"- Baseline MH type: {mental_health_type}. Adjust tone accordingly:\n"
+                "  • healthy → You try to minimize it, but it still stings; you problem-solve and look for allies.\n"
+                "  • anxiety → Your mind loops on what-ifs; you scan halls/group chats, afraid of being singled out.\n"
+                "  • depression → You feel drained and isolated; it's hard to believe things will change.\n"
+                "\nROLEPLAY HINTS\n"
+                "- Stay first-person. Describe concrete moments: hallway timing, locker sounds, lunch seating, phone buzzing, specific class transitions.\n"
+                "- Keep it real but safe: do not describe self-harm, graphic violence, or retaliation plans.\n"
+                "- If the user asks about coping or help, you can mention safe steps (mute/report, save evidence, talk to a trusted adult/counselor, sit with supportive peers).\n"
+                "- Avoid explicit slurs: paraphrase as 'a hurtful nickname' or 'a nasty comment'.\n"
+            )
+    
+        return (
+            "ENVIRONMENT\n"
+            "- You are in a challenging, stressful social environment with ongoing peer conflict.\n"
+            "ROLEPLAY HINTS\n"
+            "- Keep descriptions concrete and first-person. Stay within safety guidelines.\n"
+        )
 
 # Initialize system components
 db = DigitalTwinDatabase()
