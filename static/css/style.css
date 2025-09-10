@@ -673,6 +673,39 @@ input:checked + .slider:before {
     font-style: italic;
 }
 
+/* ===== EMOTION TAG SEPARATOR STYLES ===== */
+.emotion-tag-separator {
+    display: block;
+    margin-top: 15px;
+    padding-top: 10px;
+    border-top: 1px solid rgba(108, 117, 125, 0.2);
+    color: #6c757d !important;
+    font-style: italic !important;
+    font-size: 0.85em;
+    opacity: 0.8;
+    line-height: 1.4;
+}
+
+/* 确保情绪标签在不同类型的消息中都有正确的样式 */
+.message.twin .emotion-tag-separator {
+    color: #6c757d !important;
+}
+
+.message.user .emotion-tag-separator {
+    color: rgba(255, 255, 255, 0.7) !important;
+}
+
+/* 如果需要更明显的分隔效果 */
+.emotion-tag-separator::before {
+    content: '';
+    display: block;
+    width: 30px;
+    height: 1px;
+    background: currentColor;
+    opacity: 0.3;
+    margin: 0 auto 8px;
+}
+
 /* ===== ANIMATIONS ===== */
 @keyframes fadeInUp {
     from {
