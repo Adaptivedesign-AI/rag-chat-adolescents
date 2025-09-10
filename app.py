@@ -12,7 +12,8 @@ import csv
 import pickle
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+import time
+import random
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -178,6 +179,22 @@ class ImprovedRAGSystem:
         self._embed_url = f"https://generativelanguage.googleapis.com/v1beta/models/{self._embed_model}:embedContent?key={self._api_key}"
         self._embed_timeout = 45
 
+    def _simple_retry(self, func, max_attempts=6, base_delay=1):
+        """Simple retry implementation without external dependencies"""
+        for attempt in range(max_attempts):
+            try:
+                return func()
+            except (requests.Timeout, requests.ConnectionError) as e:
+                if attempt == max_attempts - 1:
+                    raise e
+                delay = base_delay * (2 ** attempt) + random.uniform(0, 1)
+                delay = min(delay, 20)  # Cap at 20 seconds
+                logger.warning(f"Attempt {attempt + 1} failed, retrying in {delay:.1f}s: {e}")
+                time.sleep(delay)
+            except Exception as e:
+                # For non-retryable exceptions, fail immediately
+                raise e
+
     def _resolve_bucket_dir(self, scenario: str, mh: str) -> Path:
         """
         Resolve bucket directory with alias support
@@ -287,16 +304,11 @@ class ImprovedRAGSystem:
         self.embeddings_cache[bucket_name] = data
         return data
 
-    @retry(
-        wait=wait_exponential(multiplier=1, min=1, max=20),
-        stop=stop_after_attempt(6),
-        retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError))
-    )
     def _embed_one(self, text: str) -> np.ndarray:
-        """Generate embedding using REST API directly"""
-        payload = {"content": {"parts": [{"text": text}]}}
-        
-        try:
+        """Generate embedding using REST API directly with simple retry"""
+        def _make_request():
+            payload = {"content": {"parts": [{"text": text}]}}
+            
             response = requests.post(
                 self._embed_url, 
                 json=payload, 
@@ -324,10 +336,8 @@ class ImprovedRAGSystem:
                     return np.array(alt_vec, dtype=np.float32)
             
             raise RuntimeError(f"Unexpected embed response structure: {str(data)[:500]}")
-            
-        except Exception as e:
-            logger.error(f"[RAG] REST embedding failed: {e}")
-            raise
+        
+        return self._simple_retry(_make_request)
 
     def get_embedding(self, text: str) -> np.ndarray:
         """Get embedding with fallback to SDK if REST fails"""
@@ -410,7 +420,7 @@ class ImprovedRAGSystem:
             return results
 
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
-        """Convert external memories to first-person perspective"""
+        """Convert external memories to first-person perspective with better error handling"""
         if not memories:
             return []
 
@@ -438,19 +448,56 @@ Output example format: ["I remember being left out of a group chat by my classma
 
             response = chat_model.generate_content(prompt)
             
+            # Check if response was blocked
+            if not response.candidates or len(response.candidates) == 0:
+                logger.warning("Response was blocked by safety filters")
+                if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
+                    logger.warning(f"Prompt feedback: {response.prompt_feedback}")
+                # Return fallback internalized memories
+                return [f"I remember {memory.lower()}" for memory in memories[:5]]
+            
+            # Check if the first candidate has parts
+            candidate = response.candidates[0]
+            if not hasattr(candidate, 'content') or not candidate.content or not candidate.content.parts:
+                logger.warning("Response candidate has no content parts")
+                return [f"I remember {memory.lower()}" for memory in memories[:5]]
+            
+            # Get the text from the response
+            response_text = candidate.content.parts[0].text.strip()
+            
             # Parse JSON response
-            json_text = response.text.strip()
+            json_text = response_text
             if json_text.startswith('```json'):
                 json_text = json_text[7:-3]
             elif json_text.startswith('```'):
                 json_text = json_text[3:-3]
             
             internalized = json.loads(json_text)
-            return internalized if isinstance(internalized, list) else []
+            if isinstance(internalized, list):
+                return internalized
+            else:
+                logger.warning(f"Parsed result is not a list: {type(internalized)}")
+                return [f"I remember {memory.lower()}" for memory in memories[:5]]
+            
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON parsing error in internalize_memories: {e}")
+            # Try to extract any valid memories from malformed JSON
+            try:
+                # Simple fallback: look for quoted strings
+                import re
+                quotes = re.findall(r'"([^"]*)"', response_text)
+                if quotes:
+                    return quotes[:5]
+            except:
+                pass
+            return [f"I remember {memory.lower()}" for memory in memories[:5]]
             
         except Exception as e:
             logger.error(f"Error internalizing memories: {e}")
-            # Fallback: return original memories with simple first-person conversion
+            # Check for specific Gemini API errors
+            if "response.parts" in str(e) or "prompt_feedback" in str(e):
+                logger.warning("Content was likely blocked by safety filters, using fallback")
+            # Return fallback internalized memories
             return [f"I remember {memory.lower()}" for memory in memories[:5]]
 
 class TwinManager:
@@ -590,17 +637,17 @@ class TwinManager:
                 "  Your posts get sarcastic emoji reactions; a rumor thread spreads with edited screenshots.\n"
                 "  You sometimes wake up to dozens of notifications and feel a drop in your stomach before you even look.\n"
                 "- Social dynamics: A few bystanders notice but stay quiet. One friend is kind in private but avoids speaking up publicly.\n"
-                "- Adults: A teacher has \"talked to the class\" before, but enforcement feels inconsistent. You’re unsure reporting will help.\n"
+                "- Adults: A teacher has \"talked to the class\" before, but enforcement feels inconsistent. You're unsure reporting will help.\n"
                 "\nINTERNAL STATE CUES\n"
                 f"- Baseline MH type: {mental_health_type}. Adjust tone accordingly:\n"
                 "  • healthy → You try to minimize it, but it still stings; you problem-solve and look for allies.\n"
                 "  • anxiety → Your mind loops on what-ifs; you scan halls/group chats, afraid of being singled out.\n"
-                "  • depression → You feel drained and isolated; it’s hard to believe things will change.\n"
+                "  • depression → You feel drained and isolated; it's hard to believe things will change.\n"
                 "\nROLEPLAY HINTS\n"
                 "- Stay first-person. Describe concrete moments: hallway timing, locker sounds, lunch seating, phone buzzing, specific class transitions.\n"
                 "- Keep it real but safe: do not describe self-harm, graphic violence, or retaliation plans.\n"
                 "- If the user asks about coping or help, you can mention safe steps (mute/report, save evidence, talk to a trusted adult/counselor, sit with supportive peers).\n"
-                "- Avoid explicit slurs: paraphrase as “a hurtful nickname” or “a nasty comment”.\n"
+                "- Avoid explicit slurs: paraphrase as "a hurtful nickname" or "a nasty comment".\n"
             )
     
         return (
@@ -616,21 +663,6 @@ rag_system = ImprovedRAGSystem()
 twin_manager = TwinManager(db, rag_system)
 
 # Flask routes
-@app.route('/')
-def index():
-    return render_template('index.html')
-
-@app.route('/chat/<twin_id>')
-def chat(twin_id):
-    twin_config = twin_manager.get_twin_config(twin_id)
-    if not twin_config:
-        return "Twin not found", 404
-    
-    if 'session_id' not in session:
-        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
-    
-    return render_template('chat.html')
-
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
     try:
@@ -741,4 +773,19 @@ def debug_rag():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)')
+def index():
+    return render_template('index.html')
+
+@app.route('/chat/<twin_id>')
+def chat(twin_id):
+    twin_config = twin_manager.get_twin_config(twin_id)
+    if not twin_config:
+        return "Twin not found", 404
+    
+    if 'session_id' not in session:
+        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
+    
+    return render_template('chat.html')
+
+@app.route('/
