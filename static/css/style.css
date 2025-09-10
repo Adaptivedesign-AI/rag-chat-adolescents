@@ -942,3 +942,10 @@ input:checked + .slider:before {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
 }
+
+/* 让模型返回的 \n 保持为换行 */
+.chat-bubble .message-text,
+.assistant-message,
+.user-message {
+  white-space: pre-wrap;
+}
