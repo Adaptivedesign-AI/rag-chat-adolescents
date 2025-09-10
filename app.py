@@ -14,6 +14,7 @@ import requests
 from sklearn.metrics.pairwise import cosine_similarity
 import time
 import random
+import re
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -194,6 +195,29 @@ class ImprovedRAGSystem:
             except Exception as e:
                 # For non-retryable exceptions, fail immediately
                 raise e
+
+    def _soft_sanitize(self, text: str) -> str:
+        """
+        温和化：避免触发安全过滤的高敏词，改成中性占位。
+        不改变语义方向，只做最小替换。
+        """
+        repl = [
+            (r"\bsuicide\b", "self-harm mention"),
+            (r"\bkill myself\b", "self-harm mention"),
+            (r"\bcutting\b", "self-harm mention"),
+            (r"\bgun\b", "weapon mention"),
+            (r"\bknife\b", "weapon mention"),
+            (r"\b(kill|die)\b", "harm mention"),
+            # 侮辱词汇 → "a nasty slur"
+            (r"\b(chink|nigger|faggot|retard)\b", "a nasty slur"),
+        ]
+        s = text
+        for pat, sub in repl:
+            s = re.sub(pat, sub, s, flags=re.IGNORECASE)
+        return s
+
+    def _soften_list(self, items: List[str], limit: int = 8) -> List[str]:
+        return [self._soft_sanitize(x) for x in items[:limit]]
 
     def _resolve_bucket_dir(self, scenario: str, mh: str) -> Path:
         """
@@ -420,13 +444,15 @@ class ImprovedRAGSystem:
             return results
 
     def internalize_memories(self, memories: List[str], twin_config: Dict, twin_profile: str) -> List[str]:
-        """Convert external memories to first-person perspective with better error handling"""
+        """Convert external memories to first-person perspective with enhanced safety"""
         if not memories:
             return []
-
+        
         try:
+            # 先做温和化 + 限制条数，降低被安全拦截概率
+            memories = self._soften_list(memories, limit=8)
             memories_text = '\n- '.join(memories)
-            
+
             prompt = f"""You are roleplaying as a {twin_config['age']}-year-old {twin_config['mental_health_type']} adolescent.
 You will be given external scene descriptions (from video transcripts).
 Rewrite them as if they were **your own personal memories**, in first-person voice.
@@ -437,6 +463,7 @@ Rules:
 - Only keep the parts that could belong to "me".
 - Rewrite in natural language, not clinical labels.
 - If something does not fit "my perspective", skip it.
+- Do not state or imply self-harm plans, graphic violence, or explicit slurs; paraphrase safely (e.g., 'a hurtful nickname').
 - Do not mention that these are videos or external descriptions — write them as if they are purely my memories.
 - Keep each memory short (1–2 sentences).
 - Output strictly as a JSON list of strings.
@@ -446,59 +473,60 @@ External descriptions:
 
 Output example format: ["I remember being left out of a group chat by my classmates.", "I remember panicking before giving a class presentation."]"""
 
-            response = chat_model.generate_content(prompt)
-            
-            # Check if response was blocked
-            if not response.candidates or len(response.candidates) == 0:
-                logger.warning("Response was blocked by safety filters")
-                if hasattr(response, 'prompt_feedback') and response.prompt_feedback:
-                    logger.warning(f"Prompt feedback: {response.prompt_feedback}")
-                # Return fallback internalized memories
-                return [f"I remember {memory.lower()}" for memory in memories[:5]]
-            
-            # Check if the first candidate has parts
+            # 温度略低，减少发散
+            response = chat_model.generate_content(
+                prompt,
+                generation_config={"temperature": 0.3}
+            )
+
+            if not response.candidates:
+                logger.warning("No candidates in response, using fallback")
+                return [f"I remember {m.lower()}" for m in memories[:5]]
+
             candidate = response.candidates[0]
             if not hasattr(candidate, 'content') or not candidate.content or not candidate.content.parts:
-                logger.warning("Response candidate has no content parts")
-                return [f"I remember {memory.lower()}" for memory in memories[:5]]
-            
-            # Get the text from the response
+                logger.warning("No content parts in response, using fallback")
+                return [f"I remember {m.lower()}" for m in memories[:5]]
+
             response_text = candidate.content.parts[0].text.strip()
+
+            # 解析 JSON
+            jt = response_text
+            if jt.startswith('```json'):
+                jt = jt[7:-3]
+            elif jt.startswith('```'):
+                jt = jt[3:-3]
+
+            parsed = json.loads(jt)
+            if isinstance(parsed, list) and parsed:
+                return parsed
+
+            # 降级重试：更温和指令
+            logger.info("First attempt failed, trying softer prompt")
+            soft_prompt = prompt + "\n\nReminder: Keep all content safe and non-graphic. Paraphrase any harmful content very gently."
+            response2 = chat_model.generate_content(
+                soft_prompt, 
+                generation_config={"temperature": 0.2}
+            )
             
-            # Parse JSON response
-            json_text = response_text
-            if json_text.startswith('```json'):
-                json_text = json_text[7:-3]
-            elif json_text.startswith('```'):
-                json_text = json_text[3:-3]
+            if response2.candidates and response2.candidates[0].content and response2.candidates[0].content.parts:
+                txt2 = response2.candidates[0].content.parts[0].text.strip()
+                if txt2.startswith('```json'):
+                    txt2 = txt2[7:-3]
+                elif txt2.startswith('```'):
+                    txt2 = txt2[3:-3]
+                parsed2 = json.loads(txt2)
+                if isinstance(parsed2, list) and parsed2:
+                    return parsed2
             
-            internalized = json.loads(json_text)
-            if isinstance(internalized, list):
-                return internalized
-            else:
-                logger.warning(f"Parsed result is not a list: {type(internalized)}")
-                return [f"I remember {memory.lower()}" for memory in memories[:5]]
-            
+            return [f"I remember {m.lower()}" for m in memories[:5]]
+
         except json.JSONDecodeError as e:
             logger.error(f"JSON parsing error in internalize_memories: {e}")
-            # Try to extract any valid memories from malformed JSON
-            try:
-                # Simple fallback: look for quoted strings
-                import re
-                quotes = re.findall(r'"([^"]*)"', response_text)
-                if quotes:
-                    return quotes[:5]
-            except:
-                pass
-            return [f"I remember {memory.lower()}" for memory in memories[:5]]
-            
+            return [f"I remember {m.lower()}" for m in memories[:5]]
         except Exception as e:
             logger.error(f"Error internalizing memories: {e}")
-            # Check for specific Gemini API errors
-            if "response.parts" in str(e) or "prompt_feedback" in str(e):
-                logger.warning("Content was likely blocked by safety filters, using fallback")
-            # Return fallback internalized memories
-            return [f"I remember {memory.lower()}" for memory in memories[:5]]
+            return [f"I remember {m.lower()}" for m in memories[:5]]
 
 class TwinManager:
     def __init__(self, db: DigitalTwinDatabase, rag_system: ImprovedRAGSystem):
@@ -614,6 +642,7 @@ class TwinManager:
             return "Sorry, I'm having trouble thinking right now. Can you try again?"
     
     def get_scenario_context(self, scenario: str, mental_health_type: str) -> str:
+        """Get scenario-specific context with fixed quote escaping"""
         if scenario == 'neutral':
             return (
                 "ENVIRONMENT (neutral)\n"
@@ -631,13 +660,13 @@ class TwinManager:
                 "ENVIRONMENT (toxic — bullying focus)\n"
                 "- Setting: A U.S. public high school during the semester. Between classes, in hallways near lockers, and at lunch.\n"
                 "- Offline bullying: A small group repeatedly targets you. They whisper and laugh when you pass; one person mutters a hurtful nickname.\n"
-                "  At your locker, a classmate \"accidentally\" bumps your shoulder; another films you on their phone while smirking.\n"
+                "  At your locker, a classmate 'accidentally' bumps your shoulder; another films you on their phone while smirking.\n"
                 "  In class, they swap notes and glance back at you; it feels obvious but hard to prove.\n"
                 "- Online bullying: In a group chat you were added to, screenshots and inside jokes circulate about you.\n"
                 "  Your posts get sarcastic emoji reactions; a rumor thread spreads with edited screenshots.\n"
                 "  You sometimes wake up to dozens of notifications and feel a drop in your stomach before you even look.\n"
                 "- Social dynamics: A few bystanders notice but stay quiet. One friend is kind in private but avoids speaking up publicly.\n"
-                "- Adults: A teacher has \"talked to the class\" before, but enforcement feels inconsistent. You're unsure reporting will help.\n"
+                "- Adults: A teacher has 'talked to the class' before, but enforcement feels inconsistent. You're unsure reporting will help.\n"
                 "\nINTERNAL STATE CUES\n"
                 f"- Baseline MH type: {mental_health_type}. Adjust tone accordingly:\n"
                 "  • healthy → You try to minimize it, but it still stings; you problem-solve and look for allies.\n"
@@ -647,7 +676,7 @@ class TwinManager:
                 "- Stay first-person. Describe concrete moments: hallway timing, locker sounds, lunch seating, phone buzzing, specific class transitions.\n"
                 "- Keep it real but safe: do not describe self-harm, graphic violence, or retaliation plans.\n"
                 "- If the user asks about coping or help, you can mention safe steps (mute/report, save evidence, talk to a trusted adult/counselor, sit with supportive peers).\n"
-                "- Avoid explicit slurs: paraphrase as "a hurtful nickname" or "a nasty comment".\n"
+                "- Avoid explicit slurs: paraphrase as 'a hurtful nickname' or 'a nasty comment'.\n"
             )
     
         return (
@@ -663,6 +692,21 @@ rag_system = ImprovedRAGSystem()
 twin_manager = TwinManager(db, rag_system)
 
 # Flask routes
+@app.route('/')
+def index():
+    return render_template('index.html')
+
+@app.route('/chat/<twin_id>')
+def chat(twin_id):
+    twin_config = twin_manager.get_twin_config(twin_id)
+    if not twin_config:
+        return "Twin not found", 404
+    
+    if 'session_id' not in session:
+        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
+    
+    return render_template('chat.html')
+
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
     try:
@@ -773,19 +817,4 @@ def debug_rag():
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
-    app.run(host='0.0.0.0', port=port, debug=debug_mode)')
-def index():
-    return render_template('index.html')
-
-@app.route('/chat/<twin_id>')
-def chat(twin_id):
-    twin_config = twin_manager.get_twin_config(twin_id)
-    if not twin_config:
-        return "Twin not found", 404
-    
-    if 'session_id' not in session:
-        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
-    
-    return render_template('chat.html')
-
-@app.route('/
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
