@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session
+from flask import Flask, render_template, request, jsonify, session, redirect, Response
 import google.generativeai as genai
 import sqlite3
 import json
@@ -14,6 +14,9 @@ import pickle
 import requests
 from sklearn.metrics.pairwise import cosine_similarity
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+import uuid
+from io import StringIO
+import base64
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -31,6 +34,328 @@ genai.configure(api_key=GEMINI_API_KEY)
 
 # Use more stable model
 chat_model = genai.GenerativeModel('gemini-2.0-flash')
+
+# ================================
+# Data Monitoring System
+# ================================
+
+class ConversationMonitor:
+    def __init__(self):
+        self.data_file = 'conversation_data.json'
+        self.github_enabled = self.setup_github()
+        self.data = self.load_data()
+        self.operation_count = 0
+        self.save_frequency = 1  # Save to GitHub after every conversation
+
+    def setup_github(self):
+        self.github_token = os.environ.get("GITHUB_TOKEN")
+        self.github_repo = os.environ.get("GITHUB_REPO")  # e.g., "username/data-repo"
+        self.github_branch = os.environ.get("GITHUB_BRANCH", "main")
+        enabled = bool(self.github_token and self.github_repo)
+        if enabled:
+            print("GitHub sync enabled for conversation data")
+        else:
+            print("Using local file storage only")
+        return enabled
+
+    def load_data(self):
+        # Try to download from GitHub first
+        if self.github_enabled:
+            self.download_from_github()
+
+        if os.path.exists(self.data_file):
+            try:
+                with open(self.data_file, 'r', encoding='utf-8') as f:
+                    data = json.load(f)
+                    # Ensure data structure integrity
+                    if 'conversations' not in data:
+                        data['conversations'] = []
+                    if 'twins_chatted' in data and isinstance(data['twins_chatted'], list):
+                        data['twins_chatted'] = set(data['twins_chatted'])
+                    print(f"Loaded {len(data.get('conversations', []))} conversations")
+                    return data
+            except Exception as e:
+                print(f"Error loading data: {e}")
+
+        # Create empty data structure
+        empty_data = {
+            'conversations': [],
+            'last_updated': datetime.now().isoformat(),
+            'total_conversations': 0,
+            'twins_chatted': set(),
+            'scenarios_used': set(),
+            'version': '4.0'
+        }
+
+        self.save_data_to_file(empty_data)
+        print("Created new conversation data file")
+        return empty_data
+
+    def get_twin_name(self, twin_id):
+        twin_names = {
+            'kaiya': 'Kaiya', 'ethan': 'Ethan', 'lucas': 'Lucas', 'maya': 'Maya',
+            'jaden': 'Jaden', 'nia': 'Nia', 'hana': 'Hana', 'mateo': 'Mateo',
+            'diego': 'Diego', 'emily': 'Emily', 'amara': 'Amara', 'tavian': 'Tavian'
+        }
+        return twin_names.get(twin_id, "Unknown")
+
+    def create_session_id(self):
+        return str(uuid.uuid4())
+
+    def log_conversation(self, twin_id: str, user_message: str, ai_response: str, 
+                        scenario: str = "neutral", rag_enabled: bool = False, 
+                        session_id: str = None, response_time_ms: int = 0):
+        """Log a conversation to the monitoring system"""
+        
+        if session_id is None:
+            session_id = self.create_session_id()
+
+        conversation = {
+            'id': len(self.data['conversations']) + 1,
+            'session_id': session_id,
+            'twin_id': twin_id,
+            'twin_name': self.get_twin_name(twin_id),
+            'user_message': user_message[:3000],  # Limit message length
+            'ai_response': ai_response[:5000],
+            'scenario': scenario,
+            'rag_enabled': rag_enabled,
+            'timestamp': datetime.now().isoformat(),
+            'response_time_ms': response_time_ms,
+            'message_length': len(user_message),
+            'response_length': len(ai_response),
+            'day_of_week': datetime.now().strftime('%A'),
+            'hour': datetime.now().hour,
+            'ip_address': request.remote_addr if request else 'unknown',
+            'user_agent': request.headers.get('User-Agent', 'unknown') if request else 'unknown'
+        }
+
+        self.data['conversations'].append(conversation)
+        self.data['total_conversations'] = len(self.data['conversations'])
+        
+        # Update tracking sets
+        if 'twins_chatted' not in self.data:
+            self.data['twins_chatted'] = set()
+        elif isinstance(self.data['twins_chatted'], list):
+            self.data['twins_chatted'] = set(self.data['twins_chatted'])
+        self.data['twins_chatted'].add(twin_id)
+
+        if 'scenarios_used' not in self.data:
+            self.data['scenarios_used'] = set()
+        elif isinstance(self.data['scenarios_used'], list):
+            self.data['scenarios_used'] = set(self.data['scenarios_used'])
+        self.data['scenarios_used'].add(scenario)
+
+        self.save_data()
+        print(f"Logged conversation: {twin_id} ({scenario}) - {user_message[:50]}...")
+
+    def get_analytics_dashboard_data(self):
+        """Generate analytics data for the dashboard"""
+        conversations = self.data['conversations']
+        if not conversations:
+            return {
+                'twin_stats': {},
+                'scenario_stats': {},
+                'hourly_distribution': {},
+                'daily_distribution': {},
+                'total_conversations': 0,
+                'unique_twins': 0,
+                'unique_sessions': 0,
+                'recent_conversations': 0,
+                'avg_response_time': 0,
+                'rag_usage_stats': {}
+            }
+
+        # Twin statistics
+        twin_stats = {}
+        scenario_stats = {}
+        hourly_distribution = {}
+        daily_distribution = {}
+        rag_usage = {'enabled': 0, 'disabled': 0}
+        response_times = []
+        unique_sessions = set()
+
+        for conv in conversations:
+            # Twin stats
+            twin = conv['twin_name']
+            if twin not in twin_stats:
+                twin_stats[twin] = {
+                    'total_conversations': 0,
+                    'avg_response_time': 0,
+                    'total_response_time': 0,
+                    'scenarios_used': set()
+                }
+
+            twin_stats[twin]['total_conversations'] += 1
+            twin_stats[twin]['total_response_time'] += conv.get('response_time_ms', 0)
+            twin_stats[twin]['scenarios_used'].add(conv.get('scenario', 'neutral'))
+
+            # Scenario stats
+            scenario = conv.get('scenario', 'neutral')
+            scenario_stats[scenario] = scenario_stats.get(scenario, 0) + 1
+
+            # Time distributions
+            hour = conv.get('hour', 0)
+            hourly_distribution[hour] = hourly_distribution.get(hour, 0) + 1
+            
+            day = conv.get('day_of_week', 'Unknown')
+            daily_distribution[day] = daily_distribution.get(day, 0) + 1
+
+            # RAG usage
+            if conv.get('rag_enabled', False):
+                rag_usage['enabled'] += 1
+            else:
+                rag_usage['disabled'] += 1
+
+            # Response times
+            if conv.get('response_time_ms', 0) > 0:
+                response_times.append(conv['response_time_ms'])
+
+            # Session tracking
+            unique_sessions.add(conv.get('session_id', ''))
+
+        # Calculate averages for twin stats
+        for twin, stats in twin_stats.items():
+            if stats['total_conversations'] > 0:
+                stats['avg_response_time'] = stats['total_response_time'] / stats['total_conversations']
+                stats['scenarios_used'] = list(stats['scenarios_used'])
+
+        # Recent conversations (last 24 hours)
+        recent_conversations = len([c for c in conversations 
+                                  if (datetime.now() - datetime.fromisoformat(c['timestamp'])).days < 1])
+
+        return {
+            'twin_stats': twin_stats,
+            'scenario_stats': scenario_stats,
+            'hourly_distribution': hourly_distribution,
+            'daily_distribution': daily_distribution,
+            'total_conversations': len(conversations),
+            'unique_twins': len(set(conv['twin_id'] for conv in conversations)),
+            'unique_sessions': len(unique_sessions),
+            'recent_conversations': recent_conversations,
+            'avg_response_time': sum(response_times) / len(response_times) if response_times else 0,
+            'rag_usage_stats': rag_usage,
+            'most_active_twin': max(twin_stats.items(), key=lambda x: x[1]['total_conversations'])[0] if twin_stats else 'None'
+        }
+
+    def export_to_csv(self):
+        """Export conversation data to CSV format"""
+        output = StringIO()
+        if self.data['conversations']:
+            fieldnames = ['id', 'timestamp', 'twin_name', 'scenario', 'rag_enabled',
+                         'user_message', 'ai_response', 'response_time_ms', 
+                         'day_of_week', 'hour', 'session_id', 'ip_address']
+
+            writer = csv.DictWriter(output, fieldnames=fieldnames)
+            writer.writeheader()
+
+            for conv in self.data['conversations']:
+                row = {key: conv.get(key, '') for key in fieldnames}
+                writer.writerow(row)
+
+        return output.getvalue()
+
+    def save_data_to_file(self, data=None):
+        """Save data to local file"""
+        if data is None:
+            data = self.data
+        
+        # Convert sets to lists for JSON serialization
+        if 'twins_chatted' in data and isinstance(data['twins_chatted'], set):
+            data['twins_chatted'] = list(data['twins_chatted'])
+        if 'scenarios_used' in data and isinstance(data['scenarios_used'], set):
+            data['scenarios_used'] = list(data['scenarios_used'])
+
+        data['last_updated'] = datetime.now().isoformat()
+        try:
+            with open(self.data_file, 'w', encoding='utf-8') as f:
+                json.dump(data, f, indent=2, ensure_ascii=False, default=str)
+            print(f"Data saved: {len(data.get('conversations', []))} conversations")
+            return True
+        except Exception as e:
+            print(f"Error saving data: {e}")
+            return False
+
+    def save_data(self, force_upload=False):
+        """Save data locally and optionally upload to GitHub"""
+        self.operation_count += 1
+        self.save_data_to_file()
+        
+        if self.github_enabled and (self.operation_count % self.save_frequency == 0 or force_upload):
+            self.upload_to_github()
+
+    def download_from_github(self):
+        """Download existing data from GitHub repository"""
+        if not self.github_enabled:
+            return False
+        try:
+            url = f"https://api.github.com/repos/{self.github_repo}/contents/{self.data_file}"
+            headers = {
+                'Authorization': f'token {self.github_token}',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+            response = requests.get(url, headers=headers, timeout=10)
+            
+            if response.status_code == 200:
+                content = response.json()
+                file_content = base64.b64decode(content['content']).decode('utf-8')
+                with open(self.data_file, 'w', encoding='utf-8') as f:
+                    f.write(file_content)
+                print("Downloaded latest data from GitHub")
+                return True
+            elif response.status_code == 404:
+                print("No existing data file in GitHub")
+                return False
+        except Exception as e:
+            print(f"Failed to download from GitHub: {e}")
+        return False
+
+    def upload_to_github(self):
+        """Upload data to GitHub repository"""
+        if not self.github_enabled:
+            return False
+        try:
+            with open(self.data_file, 'r', encoding='utf-8') as f:
+                content = f.read()
+            
+            encoded_content = base64.b64encode(content.encode('utf-8')).decode('utf-8')
+
+            url = f"https://api.github.com/repos/{self.github_repo}/contents/{self.data_file}"
+            headers = {
+                'Authorization': f'token {self.github_token}',
+                'Accept': 'application/vnd.github.v3+json'
+            }
+
+            # Get current file SHA if it exists
+            get_response = requests.get(url, headers=headers, timeout=10)
+            sha = None
+            if get_response.status_code == 200:
+                sha = get_response.json()['sha']
+
+            # Prepare upload data
+            data = {
+                'message': f'Update conversation data - {datetime.now().strftime("%Y-%m-%d %H:%M:%S")}',
+                'content': encoded_content,
+                'branch': self.github_branch
+            }
+            if sha:
+                data['sha'] = sha
+
+            response = requests.put(url, headers=headers, json=data, timeout=15)
+            if response.status_code in [200, 201]:
+                print("Data uploaded to GitHub successfully")
+                return True
+            else:
+                print(f"GitHub upload failed with status {response.status_code}")
+        except Exception as e:
+            print(f"Error uploading to GitHub: {e}")
+        return False
+
+# Initialize the monitoring system
+monitor = ConversationMonitor()
+
+# ================================
+# Digital Twin Database
+# ================================
 
 class DigitalTwinDatabase:
     def __init__(self, db_path='digital_twins.db'):
@@ -150,6 +475,10 @@ class DigitalTwinDatabase:
         conn.commit()
         conn.close()
 
+# ================================
+# Improved RAG System
+# ================================
+
 class ImprovedRAGSystem:
     """
     Improved RAG system that properly handles embeddings alignment and directory naming
@@ -240,7 +569,7 @@ class ImprovedRAGSystem:
         if pkl_path.exists():
             try:
                 with open(pkl_path, "rb") as f:
-                    obj = pickle.load(f)  # 可能是 list[dict] / dict[id->vec] / list[(id, vec)]
+                    obj = pickle.load(f)
         
                 # 统一成可迭代的 (cid, emb)
                 items = []
@@ -519,6 +848,10 @@ class ImprovedRAGSystem:
         # 3) Fallback
         return [f"I remember {m.lower()}" for m in memories[:5]]
 
+# ================================
+# Twin Manager
+# ================================
+
 class TwinManager:
     def __init__(self, db: DigitalTwinDatabase, rag_system: ImprovedRAGSystem):
         self.db = db
@@ -667,7 +1000,7 @@ class TwinManager:
             response = chat_model.generate_content(full_prompt)
             txt = response.text.strip()
             txt = self._enforce_emotion_breaks(txt)
-            txt = self._postprocess_client_text(txt)  # ← 新增：去掉 \[ ] 等转义，确保前端好看
+            txt = self._postprocess_client_text(txt)
             return txt
         except Exception as e:
             logger.error(f"Error generating response: {e}")
@@ -720,13 +1053,16 @@ class TwinManager:
             "ROLEPLAY HINTS\n"
             "- Keep descriptions concrete and first-person. Stay within safety guidelines.\n"
         )
-       
+
 # Initialize system components
 db = DigitalTwinDatabase()
 rag_system = ImprovedRAGSystem()
 twin_manager = TwinManager(db, rag_system)
 
-# Flask routes
+# ================================
+# Flask Routes
+# ================================
+
 @app.route('/')
 def index():
     return render_template('index.html')
@@ -744,6 +1080,7 @@ def chat(twin_id):
 
 @app.route('/api/send_message', methods=['POST'])
 def send_message():
+    start_time = datetime.now()
     try:
         data = request.get_json()
         message = data.get('message', '').strip()
@@ -763,8 +1100,22 @@ def send_message():
         # Generate response
         response = twin_manager.generate_response(twin_id, message, session_id, scenario, rag_enabled)
         
+        # Calculate response time
+        response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        
         # Save assistant response
         db.save_message(twin_id, session_id, 'assistant', response, scenario, rag_enabled)
+        
+        # Log to monitoring system
+        monitor.log_conversation(
+            twin_id=twin_id,
+            user_message=message,
+            ai_response=response,
+            scenario=scenario,
+            rag_enabled=rag_enabled,
+            session_id=session_id,
+            response_time_ms=response_time_ms
+        )
         
         return jsonify({'response': response})
     
@@ -849,7 +1200,160 @@ def debug_rag():
         logger.error(f"Error in debug_rag: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# ================================
+# Admin/Analytics API Routes (JSON responses only)
+# ================================
+
+@app.route('/api/admin/analytics')
+def admin_analytics():
+    """Return analytics data as JSON"""
+    try:
+        analytics_data = monitor.get_analytics_dashboard_data()
+        return jsonify(analytics_data)
+    except Exception as e:
+        logger.error(f"Error getting analytics: {e}")
+        return jsonify({'error': 'Failed to get analytics data'}), 500
+
+@app.route('/api/admin/conversations')
+def admin_conversations():
+    """Return conversation data as JSON with pagination"""
+    try:
+        page = request.args.get('page', 1, type=int)
+        per_page = request.args.get('per_page', 50, type=int)
+        
+        conversations = monitor.data.get('conversations', [])
+        total = len(conversations)
+        
+        # Pagination
+        start = (page - 1) * per_page
+        end = start + per_page
+        page_conversations = conversations[start:end]
+        
+        return jsonify({
+            'conversations': page_conversations,
+            'total': total,
+            'page': page,
+            'per_page': per_page,
+            'total_pages': (total + per_page - 1) // per_page
+        })
+    except Exception as e:
+        logger.error(f"Error getting conversations: {e}")
+        return jsonify({'error': 'Failed to get conversation data'}), 500
+
+@app.route('/api/admin/export/csv')
+def admin_export_csv():
+    """Export conversation data as CSV"""
+    try:
+        csv_data = monitor.export_to_csv()
+        
+        return Response(
+            csv_data,
+            mimetype='text/csv',
+            headers={
+                'Content-Disposition': f'attachment; filename=twin_conversations_{datetime.now().strftime("%Y%m%d_%H%M%S")}.csv'
+            }
+        )
+    except Exception as e:
+        logger.error(f"Error exporting CSV: {e}")
+        return jsonify({'error': 'Failed to export CSV'}), 500
+
+@app.route('/api/admin/export/json')
+def admin_export_json():
+    """Export raw conversation data as JSON"""
+    try:
+        return jsonify(monitor.data)
+    except Exception as e:
+        logger.error(f"Error exporting JSON: {e}")
+        return jsonify({'error': 'Failed to export JSON'}), 500
+
+@app.route('/api/admin/sync/github', methods=['POST'])
+def admin_sync_github():
+    """Manually sync data to GitHub"""
+    try:
+        success = monitor.upload_to_github()
+        
+        return jsonify({
+            'success': success,
+            'message': 'Data successfully synced to GitHub' if success else 'Failed to sync data to GitHub'
+        })
+    except Exception as e:
+        logger.error(f"Error syncing to GitHub: {e}")
+        return jsonify({'error': 'Failed to sync to GitHub'}), 500
+
+# ================================
+# Configuration and Status Routes
+# ================================
+
+@app.route('/api/config_check')
+def config_check():
+    """Check environment configuration"""
+    config_status = {
+        'gemini_api_key': bool(os.environ.get('GEMINI_API_KEY')),
+        'secret_key': bool(os.environ.get('SECRET_KEY')),
+        'admin_password': bool(os.environ.get('ADMIN_PASSWORD')),
+        'github_token': bool(os.environ.get('GITHUB_TOKEN')),
+        'github_repo': bool(os.environ.get('GITHUB_REPO')),
+        'monitoring_enabled': monitor.github_enabled,
+        'total_conversations': len(monitor.data.get('conversations', []))
+    }
+    
+    return jsonify(config_status)
+
+@app.route('/api/test_monitoring')
+def test_monitoring():
+    """Test the monitoring system"""
+    try:
+        # Create a test conversation
+        monitor.log_conversation(
+            twin_id='kaiya',
+            user_message='This is a test message for monitoring system',
+            ai_response='This is a test response from Kaiya',
+            scenario='neutral',
+            rag_enabled=False,
+            session_id='test_session_' + str(uuid.uuid4()),
+            response_time_ms=1500
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Test conversation logged successfully',
+            'total_conversations': len(monitor.data.get('conversations', []))
+        })
+    except Exception as e:
+        logger.error(f"Error testing monitoring: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+# ================================
+# Main Application Entry Point
+# ================================
+
 if __name__ == '__main__':
+    # Print configuration status on startup
+    print("\n" + "="*60)
+    print("DIGITAL TWIN CONVERSATION MONITOR - BACKEND ONLY")
+    print("="*60)
+    print(f"GEMINI_API_KEY: {'✓' if os.environ.get('GEMINI_API_KEY') else '✗'}")
+    print(f"SECRET_KEY: {'✓' if os.environ.get('SECRET_KEY') else '✗'}")
+    print(f"ADMIN_PASSWORD: {'✓' if os.environ.get('ADMIN_PASSWORD') else '✗'}")
+    print(f"GITHUB_TOKEN: {'✓' if os.environ.get('GITHUB_TOKEN') else '✗'}")
+    print(f"GITHUB_REPO: {'✓' if os.environ.get('GITHUB_REPO') else '✗'}")
+    print(f"GitHub Sync: {'Enabled' if monitor.github_enabled else 'Disabled'}")
+    print(f"Existing conversations: {len(monitor.data.get('conversations', []))}")
+    print("="*60)
+    print("API Endpoints:")
+    print("- Chat API: /api/send_message")
+    print("- Analytics: /api/admin/analytics")
+    print("- Conversations: /api/admin/conversations")
+    print("- CSV Export: /api/admin/export/csv")
+    print("- JSON Export: /api/admin/export/json")
+    print("- GitHub Sync: /api/admin/sync/github")
+    print("- Config Check: /api/config_check")
+    print("- Test Monitor: /api/test_monitoring")
+    print("="*60 + "\n")
+    
     port = int(os.environ.get('PORT', 5000))
     debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
     app.run(host='0.0.0.0', port=port, debug=debug_mode)
