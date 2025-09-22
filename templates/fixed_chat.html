@@ -10,7 +10,7 @@
 <body class="chat-page">
     <div class="sidebar">
         <button class="back-button" onclick="window.location.href='/fixed'">
-            ← Back to Selection
+            ← Back to Fixed Configs
         </button>
         
         <div class="twin-profile">
@@ -78,10 +78,10 @@
             <div class="control-group">
                 <label class="control-label">Chat Controls</label>
                 <div class="chat-controls">
-                    <button class="control-button" onclick="clearChat()" title="Clear chat history">
+                    <button class="control-button" onclick="clearChatFixed()" title="Clear chat history">
                         🗑️ Clear Chat
                     </button>
-                    <button class="control-button" onclick="exportChatHistory()" title="Export chat history">
+                    <button class="control-button" onclick="exportChatHistoryFixed()" title="Export chat history">
                         💾 Export Chat
                     </button>
                 </div>
@@ -91,29 +91,23 @@
                 <label class="control-label">Character Information</label>
                 <div class="character-info">
                     <div id="characterStats">
-                        <div class="stat-item">
-                            <span class="stat-label">Name:</span>
-                            <span class="stat-value">{{ twin_config.name }}</span>
+                        <div class="character-stat">
+                            <strong>Name:</strong> {{ twin_config.name }}
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Age:</span>
-                            <span class="stat-value">{{ twin_config.age }} years</span>
+                        <div class="character-stat">
+                            <strong>Age:</strong> {{ twin_config.age }} years
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Grade:</span>
-                            <span class="stat-value">{{ twin_config.grade }}</span>
+                        <div class="character-stat">
+                            <strong>Grade:</strong> {{ twin_config.grade }}
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Mental Health:</span>
-                            <span class="stat-value">{{ twin_config.mental_health_type|title }}</span>
+                        <div class="character-stat">
+                            <strong>Mental Health:</strong> {{ twin_config.mental_health_type|title }}
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Environment:</span>
-                            <span class="stat-value">{% if fixed_config.scenario == 'neutral' %}Healthy{% else %}Toxic{% endif %}</span>
+                        <div class="character-stat">
+                            <strong>Environment:</strong> {% if fixed_config.scenario == 'neutral' %}Healthy{% else %}Toxic{% endif %}
                         </div>
-                        <div class="stat-item">
-                            <span class="stat-label">Enhanced Memory:</span>
-                            <span class="stat-value">{% if fixed_config.rag_enabled %}Enabled{% else %}Disabled{% endif %}</span>
+                        <div class="character-stat">
+                            <strong>Enhanced Memory:</strong> {% if fixed_config.rag_enabled %}Enabled{% else %}Disabled{% endif %}
                         </div>
                     </div>
                 </div>
@@ -154,16 +148,18 @@
     </div>
 
     <style>
-        /* 添加固定设置的样式 */
+        /* Fixed configuration specific styles */
         .fixed-badge {
             background: #e74c3c;
             color: white;
             font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 10px;
-            margin-top: 5px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-top: 8px;
             text-align: center;
             font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
         }
         
         .scenario-option:not(.active) {
@@ -176,21 +172,12 @@
             pointer-events: none;
         }
         
-        .stat-item {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 8px;
-            padding: 4px 0;
-            border-bottom: 1px solid #eee;
+        .toggle-switch.disabled .slider {
+            cursor: not-allowed;
         }
         
-        .stat-label {
-            font-weight: bold;
-            color: #666;
-        }
-        
-        .stat-value {
-            color: #333;
+        .control-label {
+            color: #7F96B2 !important;
         }
     </style>
 
@@ -203,139 +190,312 @@
             config_key: '{{ config_key }}'
         };
 
-        // Initialize chat
+        // Twin configuration for this specific twin
+        const currentTwinConfig = {
+            name: '{{ twin_config.name }}',
+            age: {{ twin_config.age }},
+            grade: '{{ twin_config.grade }}',
+            avatar: '/static/images/{{ fixed_config.twin_id }}-avatar.png',
+            description: '',
+            mentalHealthType: '{{ twin_config.mental_health_type }}',
+            ageGroup: 'late',
+            initialMessage: "Hi! I'm {{ twin_config.name }}. How are you doing today?"
+        };
+
+        // Global variables
+        let currentTwin = FIXED_CONFIG.twin_id;
+        let currentScenario = FIXED_CONFIG.scenario;
+        let ragEnabled = FIXED_CONFIG.rag_enabled;
+        let isTyping = false;
+        let chatHistory = [];
+
+        // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
-            initializeChat();
-            addWelcomeMessage();
+            initializeFixedChatPage();
         });
 
-        function initializeChat() {
-            // Set up avatar (you can customize this based on twin_id)
-            const avatar = document.getElementById('profileAvatar');
-            const twinId = FIXED_CONFIG.twin_id;
-            avatar.textContent = twinId.charAt(0).toUpperCase() + twinId.charAt(1);
+        function initializeFixedChatPage() {
+            console.log('Initializing fixed chat page...');
+            
+            // Initialize twin profile
+            initializeTwinProfileFixed();
+            
+            // Setup event listeners
+            setupEventListenersFixed();
+            
+            // Add initial message after a short delay
+            setTimeout(() => {
+                addMessage('twin', currentTwinConfig.initialMessage);
+            }, 500);
         }
 
-        function addWelcomeMessage() {
-            const name = '{{ twin_config.name }}';
-            addMessage(`Hi! I'm ${name}. How are you doing today?`, false);
+        function initializeTwinProfileFixed() {
+            const config = currentTwinConfig;
+            
+            // Update profile avatar
+            const profileAvatar = document.getElementById('profileAvatar');
+            if (profileAvatar) {
+                profileAvatar.innerHTML = `<img src="${config.avatar}" alt="${config.name}" onerror="this.style.display='none'; this.parentNode.innerHTML='${config.name.charAt(0).toUpperCase()}';">`;
+            }
         }
 
-        function addMessage(content, isUser = false) {
+        function setupEventListenersFixed() {
+            // Message form submission
+            const chatForm = document.getElementById('chatForm');
+            if (chatForm) {
+                chatForm.addEventListener('submit', sendMessageFixed);
+            }
+            
+            // Auto-resize textarea
+            const messageInput = document.getElementById('messageInput');
+            if (messageInput) {
+                messageInput.addEventListener('input', autoResizeTextarea);
+                messageInput.addEventListener('keydown', handleKeyDown);
+            }
+        }
+
+        function sendMessageFixed(event) {
+            event.preventDefault();
+            
+            const messageInput = document.getElementById('messageInput');
+            if (!messageInput) return;
+            
+            const message = messageInput.value.trim();
+            
+            if (!message || isTyping) return;
+            
+            console.log('Sending message:', message);
+            
+            // Add user message to chat
+            addMessage('user', message);
+            
+            // Clear input
+            messageInput.value = '';
+            autoResizeTextarea({ target: messageInput });
+            
+            // Show typing indicator
+            showTypingIndicator();
+            
+            // Send message to backend using fixed API
+            fetch('/api/send_message_fixed', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    message: message,
+                    config_key: FIXED_CONFIG.config_key
+                })
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                hideTypingIndicator();
+                if (data.response) {
+                    addMessage('twin', data.response);
+                } else {
+                    throw new Error('No response received');
+                }
+            })
+            .catch(error => {
+                console.error('Error sending message:', error);
+                hideTypingIndicator();
+                addMessage('twin', 'Sorry, I had trouble understanding that. Could you try again?');
+                showNotification('Failed to send message', 'error');
+            });
+        }
+
+        function addMessage(sender, content, timestamp = new Date()) {
             const messagesContainer = document.getElementById('chatMessages');
+            if (!messagesContainer) return;
+            
+            const config = currentTwinConfig;
             const messageDiv = document.createElement('div');
-            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            messageDiv.className = `message ${sender}`;
             
-            const messageContent = document.createElement('div');
-            messageContent.className = 'message-content';
-            messageContent.innerHTML = content.replace(/\n/g, '<br>');
+            // Process emotion tags just like in original
+            let processedContent = content;
+            if (sender === 'twin' || sender === 'assistant') {
+                const emotionTagRegex = /(.*?)[\s\n]*(Emotion(?:al)?\s*tag\s*:\s*[^\n]+)$/i;
+                const match = processedContent.match(emotionTagRegex);
+                
+                if (match) {
+                    const mainContent = match[1].trim();
+                    const emotionTag = match[2];
+                    processedContent = `${mainContent}<div class="emotion-tag-separator">${emotionTag}</div>`;
+                }
+            }
             
-            const messageTime = document.createElement('div');
-            messageTime.className = 'message-time';
-            messageTime.textContent = new Date().toLocaleTimeString();
+            // Determine avatar content
+            let avatarContent;
+            if (sender === 'user') {
+                avatarContent = '👤';
+            } else if (sender === 'system') {
+                avatarContent = '⚙️';
+            } else {
+                avatarContent = `<img src="${config.avatar}" alt="${config.name}" onerror="this.style.display='none'; this.parentNode.innerHTML='${config.name.charAt(0).toUpperCase()}';">`;
+            }
             
-            messageDiv.appendChild(messageContent);
-            messageDiv.appendChild(messageTime);
+            // Convert line breaks to HTML
+            const formattedContent = processedContent.replace(/\n/g, '<br>');
+            
+            messageDiv.innerHTML = `
+                <div class="message-avatar">${avatarContent}</div>
+                <div class="message-content">
+                    ${formattedContent}
+                    <div class="message-time" style="font-size: 0.7rem; opacity: 0.6; margin-top: 5px;">
+                        ${formatTime(timestamp)}
+                    </div>
+                </div>
+            `;
+            
             messagesContainer.appendChild(messageDiv);
             
+            // Add to chat history
+            chatHistory.push({
+                sender: sender,
+                content: content,
+                timestamp: timestamp
+            });
+            
+            // Scroll to bottom
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            
+            // Add animation
+            setTimeout(() => {
+                messageDiv.style.opacity = '1';
+            }, 50);
         }
 
         function showTypingIndicator() {
-            document.getElementById('typingIndicator').style.display = 'block';
+            isTyping = true;
+            const typingIndicator = document.getElementById('typingIndicator');
+            const sendButton = document.getElementById('sendButton');
+            
+            if (typingIndicator) {
+                typingIndicator.textContent = `${currentTwinConfig.name} is typing...`;
+                typingIndicator.style.display = 'block';
+            }
+            
+            if (sendButton) {
+                sendButton.disabled = true;
+                sendButton.classList.add('loading');
+            }
+            
+            const messagesContainer = document.getElementById('chatMessages');
+            if (messagesContainer) {
+                messagesContainer.scrollTop = messagesContainer.scrollHeight;
+            }
         }
 
         function hideTypingIndicator() {
-            document.getElementById('typingIndicator').style.display = 'none';
-        }
-
-        async function sendMessage() {
-            const messageInput = document.getElementById('messageInput');
+            isTyping = false;
+            const typingIndicator = document.getElementById('typingIndicator');
             const sendButton = document.getElementById('sendButton');
-            const message = messageInput.value.trim();
             
-            if (!message) return;
+            if (typingIndicator) {
+                typingIndicator.style.display = 'none';
+            }
             
-            // Add user message
-            addMessage(message, true);
-            messageInput.value = '';
-            
-            // Disable input and show typing
-            sendButton.disabled = true;
-            messageInput.disabled = true;
-            showTypingIndicator();
-            
-            try {
-                const response = await fetch('/api/send_message_fixed', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        message: message,
-                        config_key: FIXED_CONFIG.config_key
-                    }),
-                });
-                
-                const data = await response.json();
-                
-                if (data.error) {
-                    addMessage('Error: ' + data.error, false);
-                } else {
-                    addMessage(data.response, false);
-                }
-            } catch (error) {
-                addMessage('Error: Failed to send message', false);
-                console.error('Error:', error);
-            } finally {
-                // Re-enable input and hide typing
+            if (sendButton) {
                 sendButton.disabled = false;
-                messageInput.disabled = false;
-                hideTypingIndicator();
-                messageInput.focus();
+                sendButton.classList.remove('loading');
             }
         }
 
-        // Form submission
-        document.getElementById('chatForm').addEventListener('submit', function(e) {
-            e.preventDefault();
-            sendMessage();
-        });
-
-        // Enter key handling
-        document.getElementById('messageInput').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                sendMessage();
+        function handleKeyDown(event) {
+            if (event.key === 'Enter' && !event.shiftKey) {
+                event.preventDefault();
+                sendMessageFixed(event);
             }
-        });
+        }
 
-        // Chat controls
-        function clearChat() {
+        function autoResizeTextarea(event) {
+            const textarea = event.target;
+            textarea.style.height = 'auto';
+            textarea.style.height = Math.min(textarea.scrollHeight, 120) + 'px';
+        }
+
+        function formatTime(date = new Date()) {
+            return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        }
+
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.className = `notification notification-${type}`;
+            notification.textContent = message;
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'error' ? '#e74c3c' : '#7F96B2'};
+                color: white;
+                padding: 15px 20px;
+                border-radius: 10px;
+                box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+                z-index: 1000;
+                transform: translateX(100%);
+                transition: transform 0.3s ease;
+            `;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(0)';
+            }, 100);
+            
+            setTimeout(() => {
+                notification.style.transform = 'translateX(100%)';
+                setTimeout(() => {
+                    if (notification.parentNode) {
+                        notification.parentNode.removeChild(notification);
+                    }
+                }, 300);
+            }, 3000);
+        }
+
+        // Chat utilities
+        function clearChatFixed() {
             const messagesContainer = document.getElementById('chatMessages');
-            messagesContainer.innerHTML = '';
-            addWelcomeMessage();
+            if (messagesContainer) {
+                messagesContainer.innerHTML = '';
+            }
+            chatHistory = [];
+            setTimeout(() => {
+                addMessage('twin', currentTwinConfig.initialMessage);
+            }, 500);
         }
 
-        function exportChatHistory() {
-            const messages = document.querySelectorAll('.message');
-            let chatHistory = '';
+        function exportChatHistoryFixed() {
+            const config = currentTwinConfig;
+            const timestamp = new Date().toISOString().split('T')[0];
+            const filename = `chat_${config.name}_fixed_${timestamp}.json`;
             
-            messages.forEach(message => {
-                const isUser = message.classList.contains('user-message');
-                const content = message.querySelector('.message-content').textContent;
-                const time = message.querySelector('.message-time').textContent;
-                
-                chatHistory += `[${time}] ${isUser ? 'You' : '{{ twin_config.name }}'}: ${content}\n`;
-            });
+            const data = {
+                twin: config,
+                fixed_config: FIXED_CONFIG,
+                scenario: currentScenario,
+                rag_enabled: ragEnabled,
+                messages: chatHistory,
+                exported_at: new Date().toISOString()
+            };
             
-            const blob = new Blob([chatHistory], { type: 'text/plain' });
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
             const url = URL.createObjectURL(blob);
+            
             const a = document.createElement('a');
             a.href = url;
-            a.download = `chat_{{ twin_config.name|lower }}_${new Date().getTime()}.txt`;
+            a.download = filename;
+            document.body.appendChild(a);
             a.click();
+            document.body.removeChild(a);
             URL.revokeObjectURL(url);
+            
+            showNotification('Chat history exported');
         }
     </script>
 </body>
