@@ -1059,6 +1059,23 @@ db = DigitalTwinDatabase()
 rag_system = ImprovedRAGSystem()
 twin_manager = TwinManager(db, rag_system)
 
+
+# 添加固定配置字典（在这里添加）
+FIXED_CONFIGS = {
+    'lucas-healthy-rag': {'twin_id': 'lucas', 'scenario': 'neutral', 'rag_enabled': True},
+    'lucas-healthy-norag': {'twin_id': 'lucas', 'scenario': 'neutral', 'rag_enabled': False},
+    'lucas-toxic-rag': {'twin_id': 'lucas', 'scenario': 'toxic', 'rag_enabled': True},
+    'lucas-toxic-norag': {'twin_id': 'lucas', 'scenario': 'toxic', 'rag_enabled': False},
+    'hana-healthy-rag': {'twin_id': 'hana', 'scenario': 'neutral', 'rag_enabled': True},
+    'hana-healthy-norag': {'twin_id': 'hana', 'scenario': 'neutral', 'rag_enabled': False},
+    'hana-toxic-rag': {'twin_id': 'hana', 'scenario': 'toxic', 'rag_enabled': True},
+    'hana-toxic-norag': {'twin_id': 'hana', 'scenario': 'toxic', 'rag_enabled': False},
+    'amara-healthy-rag': {'twin_id': 'amara', 'scenario': 'neutral', 'rag_enabled': True},
+    'amara-healthy-norag': {'twin_id': 'amara', 'scenario': 'neutral', 'rag_enabled': False},
+    'amara-toxic-rag': {'twin_id': 'amara', 'scenario': 'toxic', 'rag_enabled': True},
+    'amara-toxic-norag': {'twin_id': 'amara', 'scenario': 'toxic', 'rag_enabled': False},
+}
+
 # ================================
 # Flask Routes
 # ================================
@@ -1200,6 +1217,94 @@ def debug_rag():
         logger.error(f"Error in debug_rag: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# 在这里添加新的路由
+# ================================
+# Fixed Configuration Routes
+# ================================
+
+@app.route('/fixed')
+def fixed_index():
+    """显示所有固定配置的链接"""
+    return render_template('fixed_index.html', configs=FIXED_CONFIGS)
+
+@app.route('/fixed/<config_key>')
+def fixed_chat(config_key):
+    """固定配置的聊天页面"""
+    if config_key not in FIXED_CONFIGS:
+        return "Invalid configuration", 404
+    
+    config = FIXED_CONFIGS[config_key]
+    twin_config = twin_manager.get_twin_config(config['twin_id'])
+    if not twin_config:
+        return "Twin not found", 404
+    
+    # 创建session
+    if 'session_id' not in session:
+        session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
+    
+    # 传递固定配置到模板
+    return render_template('fixed_chat.html', 
+                         twin_config=twin_config,
+                         fixed_config=config,
+                         config_key=config_key)
+
+@app.route('/api/send_message_fixed', methods=['POST'])
+def send_message_fixed():
+    """为固定配置发送消息"""
+    start_time = datetime.now()
+    try:
+        data = request.get_json()
+        message = data.get('message', '').strip()
+        config_key = data.get('config_key')
+        
+        if not message or not config_key:
+            return jsonify({'error': 'Message and config_key required'}), 400
+        
+        if config_key not in FIXED_CONFIGS:
+            return jsonify({'error': 'Invalid configuration'}), 400
+        
+        config = FIXED_CONFIGS[config_key]
+        twin_id = config['twin_id']
+        scenario = config['scenario']
+        rag_enabled = config['rag_enabled']
+        
+        session_id = session.get('session_id', datetime.now().strftime('%Y%m%d_%H%M%S'))
+        session['session_id'] = session_id
+        
+        # 保存用户消息
+        db.save_message(twin_id, session_id, 'user', message, scenario, rag_enabled)
+        
+        # 生成回复
+        response = twin_manager.generate_response(twin_id, message, session_id, scenario, rag_enabled)
+        
+        # 计算响应时间
+        response_time_ms = int((datetime.now() - start_time).total_seconds() * 1000)
+        
+        # 保存助手回复
+        db.save_message(twin_id, session_id, 'assistant', response, scenario, rag_enabled)
+        
+        # 记录到监控系统
+        monitor.log_conversation(
+            twin_id=twin_id,
+            user_message=message,
+            ai_response=response,
+            scenario=scenario,
+            rag_enabled=rag_enabled,
+            session_id=session_id,
+            response_time_ms=response_time_ms
+        )
+        
+        return jsonify({'response': response})
+    
+    except Exception as e:
+        logger.error(f"Error in send_message_fixed: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
+
+# ================================
+# 现有的Admin/Analytics路由保持不变
+# ================================
+
+
 # ================================
 # Admin/Analytics API Routes (JSON responses only)
 # ================================
@@ -1330,10 +1435,13 @@ def test_monitoring():
 # Main Application Entry Point
 # ================================
 
+# 删除重复的debug_rag函数，只保留一个
+
+# 在启动信息部分，更新为：
 if __name__ == '__main__':
     # Print configuration status on startup
     print("\n" + "="*60)
-    print("DIGITAL TWIN CONVERSATION MONITOR - BACKEND ONLY")
+    print("DIGITAL TWIN CONVERSATION MONITOR - WITH FIXED CONFIGS")
     print("="*60)
     print(f"GEMINI_API_KEY: {'✓' if os.environ.get('GEMINI_API_KEY') else '✗'}")
     print(f"SECRET_KEY: {'✓' if os.environ.get('SECRET_KEY') else '✗'}")
@@ -1343,8 +1451,28 @@ if __name__ == '__main__':
     print(f"GitHub Sync: {'Enabled' if monitor.github_enabled else 'Disabled'}")
     print(f"Existing conversations: {len(monitor.data.get('conversations', []))}")
     print("="*60)
+    print("Standard Routes:")
+    print("- Home: /")
+    print("- Dynamic Chat: /chat/<twin_id>")
+    print("="*60)
+    print("Fixed Configuration Routes:")
+    print("- Config Index: /fixed")
+    print("- Lucas Healthy+RAG: /fixed/lucas-healthy-rag")
+    print("- Lucas Healthy+NoRAG: /fixed/lucas-healthy-norag")
+    print("- Lucas Toxic+RAG: /fixed/lucas-toxic-rag")
+    print("- Lucas Toxic+NoRAG: /fixed/lucas-toxic-norag")
+    print("- Hana Healthy+RAG: /fixed/hana-healthy-rag")
+    print("- Hana Healthy+NoRAG: /fixed/hana-healthy-norag")
+    print("- Hana Toxic+RAG: /fixed/hana-toxic-rag")
+    print("- Hana Toxic+NoRAG: /fixed/hana-toxic-norag")
+    print("- Amara Healthy+RAG: /fixed/amara-healthy-rag")
+    print("- Amara Healthy+NoRAG: /fixed/amara-healthy-norag")
+    print("- Amara Toxic+RAG: /fixed/amara-toxic-rag")
+    print("- Amara Toxic+NoRAG: /fixed/amara-toxic-norag")
+    print("="*60)
     print("API Endpoints:")
-    print("- Chat API: /api/send_message")
+    print("- Dynamic Chat API: /api/send_message")
+    print("- Fixed Chat API: /api/send_message_fixed")
     print("- Analytics: /api/admin/analytics")
     print("- Conversations: /api/admin/conversations")
     print("- CSV Export: /api/admin/export/csv")
