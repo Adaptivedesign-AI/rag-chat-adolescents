@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Chat with {{ twin_config.name }} - Digital Twin Platform</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+</head>
+<body class="chat-page">
+    <div class="sidebar">
+        <button class="back-button" onclick="window.location.href='/fixed'">
+            ← Back to Selection
+        </button>
+        
+        <div class="twin-profile">
+            <div class="profile-avatar" id="profileAvatar">
+                <!-- Avatar will be populated by JavaScript -->
+            </div>
+            <div class="profile-name" id="profileName">
+                {{ twin_config.name }}
+            </div>
+            <div class="profile-details" id="profileDetails">
+                {{ twin_config.age }} years old, Grade {{ twin_config.grade }}<br>
+                Mental Health Type: {{ twin_config.mental_health_type|title }}
+            </div>
+        </div>
+
+        <div class="controls-section">
+            <div class="control-group">
+                <label class="control-label">Scenario Environment (Fixed)</label>
+                <div class="scenario-options">
+                    <div class="scenario-option {% if fixed_config.scenario == 'neutral' %}active{% endif %}" data-scenario="neutral">
+                        <div class="scenario-title">🌱 Neutral Environment</div>
+                        <div class="scenario-description-detailed">
+                            <strong>Friendly halls</strong> with supportive classmates and light jokes.<br>
+                            <strong>Group chats</strong> focus on homework, memes and weekend plans — not on people.<br>
+                            <strong>Teachers</strong> are fair and resolve small conflicts quickly.
+                        </div>
+                        {% if fixed_config.scenario == 'neutral' %}
+                            <div class="fixed-badge">✓ FIXED SETTING</div>
+                        {% endif %}
+                    </div>
+                    <div class="scenario-option {% if fixed_config.scenario == 'toxic' %}active{% endif %}" data-scenario="toxic">
+                        <div class="scenario-title">⚠️ Toxic Environment</div>
+                        <div class="scenario-description-detailed">
+                            <strong>Whispers, shoulder bumps and covert filming</strong> in hallways.<br>
+                            <strong>Group chats</strong> share screenshots with mocking reactions or rumors.<br>
+                            <strong>Bystanders stay silent</strong>, and adult help feels inconsistent.
+                        </div>
+                        {% if fixed_config.scenario == 'toxic' %}
+                            <div class="fixed-badge">✓ FIXED SETTING</div>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <div class="rag-toggle-container">
+                    <label class="control-label">
+                        Enhanced Memory (RAG) - Fixed
+                        <label class="toggle-switch disabled">
+                            <input type="checkbox" id="ragToggle" {% if fixed_config.rag_enabled %}checked{% endif %} disabled>
+                            <span class="slider"></span>
+                        </label>
+                    </label>
+                    <div class="rag-description">
+                        {% if fixed_config.rag_enabled %}
+                            <strong>ENABLED:</strong> The AI is using additional context from video-based memories and past experiences to provide more realistic responses.
+                        {% else %}
+                            <strong>DISABLED:</strong> The AI is operating without enhanced memory context.
+                        {% endif %}
+                        <br><em>This setting is fixed for this conversation.</em>
+                    </div>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Chat Controls</label>
+                <div class="chat-controls">
+                    <button class="control-button" onclick="clearChat()" title="Clear chat history">
+                        🗑️ Clear Chat
+                    </button>
+                    <button class="control-button" onclick="exportChatHistory()" title="Export chat history">
+                        💾 Export Chat
+                    </button>
+                </div>
+            </div>
+
+            <div class="control-group">
+                <label class="control-label">Character Information</label>
+                <div class="character-info">
+                    <div id="characterStats">
+                        <div class="stat-item">
+                            <span class="stat-label">Name:</span>
+                            <span class="stat-value">{{ twin_config.name }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Age:</span>
+                            <span class="stat-value">{{ twin_config.age }} years</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Grade:</span>
+                            <span class="stat-value">{{ twin_config.grade }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Mental Health:</span>
+                            <span class="stat-value">{{ twin_config.mental_health_type|title }}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Environment:</span>
+                            <span class="stat-value">{% if fixed_config.scenario == 'neutral' %}Healthy{% else %}Toxic{% endif %}</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">Enhanced Memory:</span>
+                            <span class="stat-value">{% if fixed_config.rag_enabled %}Enabled{% else %}Disabled{% endif %}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="chat-container">
+        <div class="chat-header">
+            <div class="chat-title" id="chatTitle">Chat with {{ twin_config.name }}</div>
+            <div class="chat-subtitle" id="chatSubtitle">
+                {% if fixed_config.scenario == 'neutral' %}Healthy Environment{% else %}Toxic Environment{% endif %} • 
+                Enhanced Memory: {% if fixed_config.rag_enabled %}ON{% else %}OFF{% endif %} (Fixed)
+            </div>
+        </div>
+
+        <div class="chat-messages" id="chatMessages">
+            <!-- Messages will be added dynamically -->
+        </div>
+
+        <div class="typing-indicator" id="typingIndicator">
+            {{ twin_config.name }} is typing...
+        </div>
+
+        <div class="chat-input-container">
+            <form class="chat-input-form" id="chatForm">
+                <textarea 
+                    class="chat-input" 
+                    id="messageInput" 
+                    placeholder="Type your message here..." 
+                    rows="1"
+                ></textarea>
+                <button type="submit" class="send-button" id="sendButton">
+                    ➤
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <style>
+        /* 添加固定设置的样式 */
+        .fixed-badge {
+            background: #e74c3c;
+            color: white;
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 10px;
+            margin-top: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        
+        .scenario-option:not(.active) {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        .toggle-switch.disabled {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .stat-item {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 8px;
+            padding: 4px 0;
+            border-bottom: 1px solid #eee;
+        }
+        
+        .stat-label {
+            font-weight: bold;
+            color: #666;
+        }
+        
+        .stat-value {
+            color: #333;
+        }
+    </style>
+
+    <script>
+        // Fixed configuration data
+        const FIXED_CONFIG = {
+            twin_id: '{{ fixed_config.twin_id }}',
+            scenario: '{{ fixed_config.scenario }}',
+            rag_enabled: {{ 'true' if fixed_config.rag_enabled else 'false' }},
+            config_key: '{{ config_key }}'
+        };
+
+        // Initialize chat
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeChat();
+            addWelcomeMessage();
+        });
+
+        function initializeChat() {
+            // Set up avatar (you can customize this based on twin_id)
+            const avatar = document.getElementById('profileAvatar');
+            const twinId = FIXED_CONFIG.twin_id;
+            avatar.textContent = twinId.charAt(0).toUpperCase() + twinId.charAt(1);
+        }
+
+        function addWelcomeMessage() {
+            const name = '{{ twin_config.name }}';
+            addMessage(`Hi! I'm ${name}. How are you doing today?`, false);
+        }
+
+        function addMessage(content, isUser = false) {
+            const messagesContainer = document.getElementById('chatMessages');
+            const messageDiv = document.createElement('div');
+            messageDiv.className = `message ${isUser ? 'user-message' : 'bot-message'}`;
+            
+            const messageContent = document.createElement('div');
+            messageContent.className = 'message-content';
+            messageContent.innerHTML = content.replace(/\n/g, '<br>');
+            
+            const messageTime = document.createElement('div');
+            messageTime.className = 'message-time';
+            messageTime.textContent = new Date().toLocaleTimeString();
+            
+            messageDiv.appendChild(messageContent);
+            messageDiv.appendChild(messageTime);
+            messagesContainer.appendChild(messageDiv);
+            
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+
+        function showTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'block';
+        }
+
+        function hideTypingIndicator() {
+            document.getElementById('typingIndicator').style.display = 'none';
+        }
+
+        async function sendMessage() {
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            const message = messageInput.value.trim();
+            
+            if (!message) return;
+            
+            // Add user message
+            addMessage(message, true);
+            messageInput.value = '';
+            
+            // Disable input and show typing
+            sendButton.disabled = true;
+            messageInput.disabled = true;
+            showTypingIndicator();
+            
+            try {
+                const response = await fetch('/api/send_message_fixed', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        config_key: FIXED_CONFIG.config_key
+                    }),
+                });
+                
+                const data = await response.json();
+                
+                if (data.error) {
+                    addMessage('Error: ' + data.error, false);
+                } else {
+                    addMessage(data.response, false);
+                }
+            } catch (error) {
+                addMessage('Error: Failed to send message', false);
+                console.error('Error:', error);
+            } finally {
+                // Re-enable input and hide typing
+                sendButton.disabled = false;
+                messageInput.disabled = false;
+                hideTypingIndicator();
+                messageInput.focus();
+            }
+        }
+
+        // Form submission
+        document.getElementById('chatForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            sendMessage();
+        });
+
+        // Enter key handling
+        document.getElementById('messageInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendMessage();
+            }
+        });
+
+        // Chat controls
+        function clearChat() {
+            const messagesContainer = document.getElementById('chatMessages');
+            messagesContainer.innerHTML = '';
+            addWelcomeMessage();
+        }
+
+        function exportChatHistory() {
+            const messages = document.querySelectorAll('.message');
+            let chatHistory = '';
+            
+            messages.forEach(message => {
+                const isUser = message.classList.contains('user-message');
+                const content = message.querySelector('.message-content').textContent;
+                const time = message.querySelector('.message-time').textContent;
+                
+                chatHistory += `[${time}] ${isUser ? 'You' : '{{ twin_config.name }}'}: ${content}\n`;
+            });
+            
+            const blob = new Blob([chatHistory], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `chat_{{ twin_config.name|lower }}_${new Date().getTime()}.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+        }
+    </script>
+</body>
+</html>

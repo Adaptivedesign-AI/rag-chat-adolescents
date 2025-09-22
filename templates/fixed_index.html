@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Digital Twin Fixed Configurations</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+    <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+</head>
+<body class="main-page">
+    <div class="header">
+        <img src="/static/images/digital-twins-header.png" alt="Chat with Digital Twins" class="header-image">
+    </div>
+    <div class="disclaimer-text">
+        <strong>Research Configuration Notice:</strong> These are fixed-configuration digital adolescents for research purposes. Each configuration has pre-set environment (Healthy/Toxic) and memory enhancement (RAG On/Off) settings that cannot be modified during the conversation. Select your assigned configuration below.
+    </div>
+
+    <!-- Late Adolescence Section (16-18 years) -->
+    <div class="age-group-section">
+        <h2 class="age-group-title">Late Adolescence Fixed Configurations (16-18 years)</h2>
+        
+        <!-- Category Grid Container -->
+        <div class="category-grid">
+            <!-- Healthy Category -->
+            <div class="category-column">
+                <h3 class="category-title healthy-title">Healthy</h3>
+                <div class="twins-container-category">
+                    <!-- Lucas Configurations -->
+                    <div class="twin-card healthy">
+                        <div class="avatar">
+                            <img src="/static/images/lucas-avatar.png" alt="Lucas" onerror="this.style.display='none'; this.parentNode.innerHTML='L';">
+                        </div>
+                        <div class="twin-name">Lucas</div>
+                        <div class="twin-age">17 years old, 12th grade</div>
+                        <div class="twin-description">
+                            A high-achieving senior with excellent academic performance. 
+                            Maintains good mental health and strong social connections at school.
+                        </div>
+                        
+                        <!-- Configuration Buttons -->
+                        <div class="config-buttons">
+                            <div class="config-group">
+                                <span class="config-label">Healthy Environment:</span>
+                                <a href="/fixed/lucas-healthy-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/lucas-healthy-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                            <div class="config-group">
+                                <span class="config-label">Toxic Environment:</span>
+                                <a href="/fixed/lucas-toxic-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/lucas-toxic-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="category-divider"></div>
+
+            <!-- Anxious Category -->
+            <div class="category-column">
+                <h3 class="category-title anxious-title">Anxious</h3>
+                <div class="twins-container-category">
+                    <!-- Hana Configurations -->
+                    <div class="twin-card anxiety">
+                        <div class="avatar">
+                            <img src="/static/images/hana-avatar.png" alt="Hana" onerror="this.style.display='none'; this.parentNode.innerHTML='H';">
+                        </div>
+                        <div class="twin-name">Hana</div>
+                        <div class="twin-age">17 years old, 12th grade</div>
+                        <div class="twin-description">
+                            Experiences high levels of anxiety, particularly around academic performance 
+                            and future planning. Seeking strategies to manage stress and uncertainty.
+                        </div>
+                        
+                        <!-- Configuration Buttons -->
+                        <div class="config-buttons">
+                            <div class="config-group">
+                                <span class="config-label">Healthy Environment:</span>
+                                <a href="/fixed/hana-healthy-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/hana-healthy-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                            <div class="config-group">
+                                <span class="config-label">Toxic Environment:</span>
+                                <a href="/fixed/hana-toxic-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/hana-toxic-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Divider -->
+            <div class="category-divider"></div>
+
+            <!-- Depressed Category -->
+            <div class="category-column">
+                <h3 class="category-title depressed-title">Depressed</h3>
+                <div class="twins-container-category">
+                    <!-- Amara Configurations -->
+                    <div class="twin-card depression">
+                        <div class="avatar">
+                            <img src="/static/images/amara-avatar.png" alt="Amara" onerror="this.style.display='none'; this.parentNode.innerHTML='A';">
+                        </div>
+                        <div class="twin-name">Amara</div>
+                        <div class="twin-age">18 years old, 12th grade</div>
+                        <div class="twin-description">
+                            Experiences persistent feelings of sadness and hopelessness. 
+                            Working through challenging periods and seeking support and understanding.
+                        </div>
+                        
+                        <!-- Configuration Buttons -->
+                        <div class="config-buttons">
+                            <div class="config-group">
+                                <span class="config-label">Healthy Environment:</span>
+                                <a href="/fixed/amara-healthy-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/amara-healthy-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                            <div class="config-group">
+                                <span class="config-label">Toxic Environment:</span>
+                                <a href="/fixed/amara-toxic-rag" class="config-btn rag-on">RAG On</a>
+                                <a href="/fixed/amara-toxic-norag" class="config-btn rag-off">RAG Off</a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="footer">
+        <p>Fixed Configuration Research Platform | UC Berkeley Research Team | For research inquiries, contact: <a href="mailto:jingshenwang@berkeley.edu">jingshenwang@berkeley.edu</a></p>
+    </div>
+
+    <style>
+        /* Additional styles for configuration buttons */
+        .config-buttons {
+            margin-top: 15px;
+            width: 100%;
+        }
+        
+        .config-group {
+            margin-bottom: 12px;
+            text-align: center;
+        }
+        
+        .config-label {
+            display: block;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 6px;
+            color: #333;
+        }
+        
+        .config-btn {
+            display: inline-block;
+            padding: 8px 16px;
+            margin: 0 4px;
+            text-decoration: none;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            min-width: 70px;
+            text-align: center;
+        }
+        
+        .config-btn.rag-on {
+            background: #3498db;
+            color: white;
+            border: 2px solid #3498db;
+        }
+        
+        .config-btn.rag-on:hover {
+            background: #2980b9;
+            border-color: #2980b9;
+            transform: translateY(-2px);
+        }
+        
+        .config-btn.rag-off {
+            background: #95a5a6;
+            color: white;
+            border: 2px solid #95a5a6;
+        }
+        
+        .config-btn.rag-off:hover {
+            background: #7f8c8d;
+            border-color: #7f8c8d;
+            transform: translateY(-2px);
+        }
+        
+        /* Adjust twin card height to accommodate buttons */
+        .twin-card {
+            min-height: 420px;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+        }
+        
+        /* Hide the original start chat button since we have config buttons */
+        .start-chat-btn {
+            display: none;
+        }
+        
+        /* Responsive adjustments */
+        @media (max-width: 768px) {
+            .config-btn {
+                padding: 6px 12px;
+                font-size: 11px;
+                min-width: 60px;
+                margin: 2px;
+            }
+            
+            .config-label {
+                font-size: 13px;
+            }
+            
+            .twin-card {
+                min-height: 380px;
+            }
+        }
+    </style>
+</body>
+</html>
