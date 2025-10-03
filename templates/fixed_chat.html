@@ -6,12 +6,151 @@
     <title>Chat with {{ twin_config.name }} - Digital Twin Platform</title>
     <link rel="stylesheet" href="/static/css/style.css">
     <link rel="icon" href="/static/images/favicon.ico" type="image/x-icon">
+    <style>
+        /* Timer display styles */
+        .timer-container {
+            background: linear-gradient(135deg, #ff6b6b, #ee5a6f);
+            color: white;
+            padding: 12px 20px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 1rem;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.15);
+            position: relative;
+            z-index: 100;
+        }
+        
+        .timer-container.warning {
+            background: linear-gradient(135deg, #ffa500, #ff8c00);
+            animation: pulse 1.5s infinite;
+        }
+        
+        .timer-container.critical {
+            background: linear-gradient(135deg, #ff0000, #cc0000);
+            animation: pulse 0.8s infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.85; }
+        }
+        
+        .timer-icon {
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 1.2rem;
+        }
+        
+        /* Expired overlay */
+        .session-expired-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.85);
+            z-index: 10000;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .session-expired-overlay.show {
+            display: flex;
+        }
+        
+        .expired-message {
+            background: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        
+        .expired-message h2 {
+            color: #ff6b6b;
+            font-size: 2rem;
+            margin-bottom: 20px;
+        }
+        
+        .expired-message p {
+            color: #666;
+            font-size: 1.1rem;
+            line-height: 1.6;
+            margin-bottom: 30px;
+        }
+        
+        .expired-message button {
+            background: linear-gradient(135deg, #7F96B2, #B7DCED);
+            color: white;
+            border: none;
+            padding: 15px 40px;
+            border-radius: 25px;
+            font-size: 1.1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        .expired-message button:hover {
+            transform: scale(1.05);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+        }
+
+        /* Fixed configuration specific styles */
+        .fixed-badge {
+            background: #e74c3c;
+            color: white;
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 12px;
+            margin-top: 8px;
+            text-align: center;
+            font-weight: bold;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .scenario-option:not(.active) {
+            opacity: 0.5;
+            pointer-events: none;
+        }
+        
+        .toggle-switch.disabled {
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        
+        .toggle-switch.disabled .slider {
+            cursor: not-allowed;
+        }
+        
+        .control-label {
+            color: #7F96B2 !important;
+        }
+    </style>
 </head>
 <body class="chat-page">
+    <!-- Session expired overlay -->
+    <div class="session-expired-overlay" id="expiredOverlay">
+        <div class="expired-message">
+            <h2>⏰ Session Expired</h2>
+            <p>Your 10-minute chat session has ended. Click the button below to start a fresh conversation!</p>
+            <button onclick="location.reload()">Start New Session</button>
+        </div>
+    </div>
+
     <div class="sidebar">
         <button class="back-button" onclick="window.location.href='/fixed'">
             ← Back to Fixed Configs
         </button>
+        
+        <!-- Timer Display -->
+        <div class="timer-container" id="timerDisplay">
+            <span class="timer-icon">⏱️</span>
+            <span id="timerText">Time remaining: 10:00</span>
+        </div>
         
         <div class="twin-profile">
             <div class="profile-avatar" id="profileAvatar">
@@ -109,6 +248,9 @@
                         <div class="character-stat">
                             <strong>Enhanced Memory:</strong> {% if fixed_config.rag_enabled %}Enabled{% else %}Disabled{% endif %}
                         </div>
+                        <div class="character-stat" style="color: #ff6b6b; font-weight: bold;">
+                            <strong>⏱️ Session Limit:</strong> 10 minutes
+                        </div>
                     </div>
                 </div>
             </div>
@@ -147,40 +289,6 @@
         </div>
     </div>
 
-    <style>
-        /* Fixed configuration specific styles */
-        .fixed-badge {
-            background: #e74c3c;
-            color: white;
-            font-size: 10px;
-            padding: 3px 8px;
-            border-radius: 12px;
-            margin-top: 8px;
-            text-align: center;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 0.5px;
-        }
-        
-        .scenario-option:not(.active) {
-            opacity: 0.5;
-            pointer-events: none;
-        }
-        
-        .toggle-switch.disabled {
-            opacity: 0.7;
-            pointer-events: none;
-        }
-        
-        .toggle-switch.disabled .slider {
-            cursor: not-allowed;
-        }
-        
-        .control-label {
-            color: #7F96B2 !important;
-        }
-    </style>
-
     <script>
         // Fixed configuration data
         const FIXED_CONFIG = {
@@ -208,10 +316,79 @@
         let ragEnabled = FIXED_CONFIG.rag_enabled;
         let isTyping = false;
         let chatHistory = [];
+        
+        // Timer variables
+        let sessionStartTime = Date.now();
+        let timerInterval = null;
+        let sessionExpired = false;
+        const SESSION_DURATION = 600; // 10 minutes in seconds
+
+        // Timer functions
+        function updateTimer() {
+            if (sessionExpired) return;
+            
+            const elapsed = Math.floor((Date.now() - sessionStartTime) / 1000);
+            const remaining = Math.max(0, SESSION_DURATION - elapsed);
+            const minutes = Math.floor(remaining / 60);
+            const seconds = remaining % 60;
+            
+            const timerText = document.getElementById('timerText');
+            const timerDisplay = document.getElementById('timerDisplay');
+            
+            if (timerText) {
+                timerText.textContent = `Time remaining: ${minutes}:${seconds.toString().padStart(2, '0')}`;
+            }
+            
+            // Change color based on remaining time
+            if (timerDisplay) {
+                if (remaining <= 60) {
+                    timerDisplay.className = 'timer-container critical';
+                } else if (remaining <= 180) {
+                    timerDisplay.className = 'timer-container warning';
+                } else {
+                    timerDisplay.className = 'timer-container';
+                }
+            }
+            
+            // Handle session expiration
+            if (remaining <= 0) {
+                handleSessionExpired();
+            }
+        }
+        
+        function handleSessionExpired() {
+            if (sessionExpired) return;
+            
+            sessionExpired = true;
+            clearInterval(timerInterval);
+            
+            // Show expired overlay
+            const overlay = document.getElementById('expiredOverlay');
+            if (overlay) {
+                overlay.classList.add('show');
+            }
+            
+            // Disable input
+            const messageInput = document.getElementById('messageInput');
+            const sendButton = document.getElementById('sendButton');
+            if (messageInput) {
+                messageInput.disabled = true;
+                messageInput.placeholder = 'Session expired - please refresh to start new session';
+            }
+            if (sendButton) {
+                sendButton.disabled = true;
+            }
+        }
+        
+        function startTimer() {
+            timerInterval = setInterval(updateTimer, 1000);
+            updateTimer();
+        }
 
         // Initialize page
         document.addEventListener('DOMContentLoaded', function() {
             initializeFixedChatPage();
+            startTimer(); // Start the timer
         });
 
         function initializeFixedChatPage() {
@@ -257,6 +434,11 @@
         function sendMessageFixed(event) {
             event.preventDefault();
             
+            if (sessionExpired) {
+                alert('Your session has expired. Please refresh the page to start a new conversation.');
+                return;
+            }
+            
             const messageInput = document.getElementById('messageInput');
             if (!messageInput) return;
             
@@ -288,6 +470,11 @@
                 })
             })
             .then(response => {
+                if (response.status === 403) {
+                    return response.json().then(data => {
+                        throw new Error('session_expired');
+                    });
+                }
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
@@ -297,15 +484,24 @@
                 hideTypingIndicator();
                 if (data.response) {
                     addMessage('twin', data.response);
-                } else {
-                    throw new Error('No response received');
+                }
+                
+                // Update timer with server's remaining time if provided
+                if (data.remaining_seconds !== undefined) {
+                    const elapsed = SESSION_DURATION - data.remaining_seconds;
+                    sessionStartTime = Date.now() - (elapsed * 1000);
                 }
             })
             .catch(error => {
-                console.error('Error sending message:', error);
                 hideTypingIndicator();
-                addMessage('twin', 'Sorry, I had trouble understanding that. Could you try again?');
-                showNotification('Failed to send message', 'error');
+                
+                if (error.message === 'session_expired') {
+                    handleSessionExpired();
+                } else {
+                    console.error('Error sending message:', error);
+                    addMessage('twin', 'Sorry, I had trouble understanding that. Could you try again?');
+                    showNotification('Failed to send message', 'error');
+                }
             });
         }
 
@@ -497,6 +693,14 @@
             
             showNotification('Chat history exported');
         }
+
+        // Warn before leaving page
+        window.addEventListener('beforeunload', function(e) {
+            if (!sessionExpired && chatHistory.length > 1) {
+                e.preventDefault();
+                e.returnValue = '';
+            }
+        });
     </script>
 </body>
 </html>
