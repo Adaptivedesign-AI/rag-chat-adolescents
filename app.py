@@ -835,8 +835,11 @@ def fixed_chat(config_key):
     if not twin_config:
         return "Twin not found", 404
     
-    if 'session_id' not in session:
+    # Initialize session with start time for fixed chats
+    if 'session_id' not in session or session.get('config_key') != config_key:
         session['session_id'] = datetime.now().strftime('%Y%m%d_%H%M%S') + '_' + os.urandom(4).hex()
+        session['fixed_chat_start_time'] = datetime.now().isoformat()
+        session['config_key'] = config_key
     
     return render_template('fixed_chat.html', 
                          twin_config=twin_config,
@@ -847,6 +850,18 @@ def fixed_chat(config_key):
 def send_message_fixed():
     start_time = datetime.now()
     try:
+        # Check 10-minute time limit for fixed configurations
+        if 'fixed_chat_start_time' in session:
+            start_time_str = session['fixed_chat_start_time']
+            start_time_dt = datetime.fromisoformat(start_time_str)
+            elapsed_seconds = (datetime.now() - start_time_dt).total_seconds()
+            
+            if elapsed_seconds > 600:  # 10 minutes = 600 seconds
+                return jsonify({
+                    'error': 'session_expired',
+                    'message': 'Your 10-minute chat session has expired. Please refresh the page to start a new session.'
+                }), 403
+        
         data = request.get_json()
         message = data.get('message', '').strip()
         config_key = data.get('config_key')
@@ -883,7 +898,13 @@ def send_message_fixed():
             response_time_ms=response_time_ms
         )
         
-        return jsonify({'response': response})
+        # Calculate remaining time
+        remaining_seconds = 600 - elapsed_seconds if 'fixed_chat_start_time' in session else 600
+        
+        return jsonify({
+            'response': response,
+            'remaining_seconds': max(0, int(remaining_seconds))
+        })
     
     except Exception as e:
         logger.error(f"Error in send_message_fixed: {e}")
@@ -1029,7 +1050,7 @@ if __name__ == '__main__':
     print("- Home: /")
     print("- Dynamic Chat: /chat/<twin_id>")
     print("="*60)
-    print("Fixed Configuration Routes:")
+    print("Fixed Configuration Routes (10-minute time limit):")
     print("- Config Index: /fixed")
     print("- Lucas Healthy+RAG: /fixed/lucas-healthy-rag")
     print("- Lucas Healthy+NoRAG: /fixed/lucas-healthy-norag")
