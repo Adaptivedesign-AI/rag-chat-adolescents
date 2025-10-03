@@ -12,7 +12,9 @@
         <img src="/static/images/digital-twins-header.png" alt="Chat with Digital Twins" class="header-image">
     </div>
     <div class="disclaimer-text">
-        <strong>Research Configuration Notice:</strong> These are fixed-configuration digital adolescents for research purposes. Each configuration has pre-set environment (Healthy/Toxic) and memory enhancement (RAG On/Off) settings that cannot be modified during the conversation. Select your assigned configuration below.
+        <strong>Research Configuration Notice:</strong> These are fixed-configuration digital adolescents for research purposes. Each configuration has pre-set environment (Healthy/Toxic) and memory enhancement (RAG On/Off) settings that cannot be modified during the conversation. 
+        <br><br>
+        <strong style="color: #ff6b6b;">⏱️ Time Limit:</strong> Each chat session has a <strong>10-minute time limit</strong>. After 10 minutes, the session will automatically expire and you'll need to refresh the page to start a new conversation. Select your assigned configuration below.
     </div>
 
     <!-- Late Adolescence Section (16-18 years) -->
@@ -50,6 +52,7 @@
                                 <a href="/fixed/lucas-toxic-norag" class="config-btn rag-off">RAG Off</a>
                             </div>
                         </div>
+                        <div class="time-limit-notice">⏱️ 10-min limit per session</div>
                     </div>
                 </div>
             </div>
@@ -86,6 +89,7 @@
                                 <a href="/fixed/hana-toxic-norag" class="config-btn rag-off">RAG Off</a>
                             </div>
                         </div>
+                        <div class="time-limit-notice">⏱️ 10-min limit per session</div>
                     </div>
                 </div>
             </div>
@@ -122,6 +126,7 @@
                                 <a href="/fixed/amara-toxic-norag" class="config-btn rag-off">RAG Off</a>
                             </div>
                         </div>
+                        <div class="time-limit-notice">⏱️ 10-min limit per session</div>
                     </div>
                 </div>
             </div>
@@ -189,9 +194,22 @@
             transform: translateY(-2px);
         }
         
+        /* Time limit notice */
+        .time-limit-notice {
+            margin-top: 12px;
+            padding: 8px 12px;
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(238, 90, 111, 0.15));
+            border: 2px solid rgba(255, 107, 107, 0.3);
+            border-radius: 12px;
+            font-size: 0.85rem;
+            font-weight: bold;
+            color: #ff6b6b;
+            text-align: center;
+        }
+        
         /* Adjust twin card height to accommodate buttons */
         .twin-card {
-            min-height: 420px;
+            min-height: 460px;
             display: flex;
             flex-direction: column;
             justify-content: space-between;
@@ -216,7 +234,12 @@
             }
             
             .twin-card {
-                min-height: 380px;
+                min-height: 420px;
+            }
+            
+            .time-limit-notice {
+                font-size: 0.8rem;
+                padding: 6px 10px;
             }
         }
     </style>
