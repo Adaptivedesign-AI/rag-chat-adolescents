@@ -30,7 +30,7 @@ if not GEMINI_API_KEY:
 genai.configure(api_key=GEMINI_API_KEY)
 
 # Use Gemini 2.5 Flash model
-chat_model = genai.GenerativeModel('gemini-2.5-flash')
+chat_model = genai.GenerativeModel('gemini-2.0-flash')
 
 # ================================
 # Data Monitoring System
@@ -1043,7 +1043,7 @@ if __name__ == '__main__':
     print(f"GitHub Sync: {'Enabled' if monitor.github_enabled else 'Disabled'}")
     print(f"Existing conversations: {len(monitor.data.get('conversations', []))}")
     print("="*60)
-    print("Model: gemini-2.5-flash")
+    print("Model: gemini-2.0-flash")
     print("RAG Method: JSON-based enriched profiles")
     print("="*60)
     print("Standard Routes:")
